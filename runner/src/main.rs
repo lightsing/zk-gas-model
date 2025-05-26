@@ -1,4 +1,5 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
@@ -19,26 +20,30 @@ fn main() {
 
     let m = MultiProgress::new();
     let style = ProgressStyle::with_template(
-        "{prefix:<10} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {bar:40} {pos:>6}/{len:6}",
+        "{prefix:<14} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {bar:40} {pos:>6}/{len:6}",
     )
     .unwrap();
     let writer = Mutex::new(csv::Writer::from_path("results-alt.csv").unwrap());
-    TEST_VECTORS.iter().par_bridge().for_each(|(op, builder)| {
-        let tcs = Xoshiro256Plus::seed_from_u64(42)
-            .random_iter()
-            .take(100)
-            .flat_map(|seed| builder.build_all(Some(seed)))
-            .collect::<Vec<_>>();
+    let seeds = Xoshiro256Plus::seed_from_u64(42)
+        .random_iter()
+        .take(100)
+        .collect::<Vec<u64>>();
+    TEST_VECTORS
+        .iter()
+        .cartesian_product(seeds.iter().enumerate())
+        .par_bridge()
+        .for_each(|((op, builder), (idx, seed))| {
+            let tcs = builder.build_all(Some(*seed));
 
-        let pb = m.add(ProgressBar::new(tcs.len() as u64));
-        pb.set_prefix(op.as_str());
-        pb.set_style(style.clone());
+            let pb = m.add(ProgressBar::new(tcs.len() as u64));
+            pb.set_prefix(format!("{}#{:<03}", op.as_str(), idx));
+            pb.set_style(style.clone());
 
-        for tc in tcs.into_iter().progress_with(pb) {
-            let result = run_test(&client, *op, tc);
-            writer.lock().unwrap().serialize(result).unwrap();
-        }
-    });
+            for tc in tcs.into_iter().progress_with(pb) {
+                let result = run_test(&client, *op, tc);
+                writer.lock().unwrap().serialize(result).unwrap();
+            }
+        });
 }
 
 #[derive(Serialize)]

@@ -17,6 +17,7 @@ revm-primitives.workspace = true
 sp1-sdk.workspace = true
 test-vector = { path = "../test-vector" }
 serde.workspace = true
+itertools.workspace = true
 
 [build-dependencies]
 sp1-build.workspace = true
