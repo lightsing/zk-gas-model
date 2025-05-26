@@ -1,0 +1,17 @@
+[package]
+edition = "2021"
+name = "evm-guest"
+version = "0.1.0"
+
+[dependencies]
+revm-bytecode.workspace = true
+revm-interpreter.workspace = true
+serde.workspace = true
+serde_with.workspace = true
+
+sp1-zkvm = { workspace = true, optional = true }
+
+[features]
+baseline = []
+default = ["guest"]
+guest = ["dep:sp1-zkvm"]
