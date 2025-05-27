@@ -1,16 +1,18 @@
-use crate::TestCaseBuilder;
-use rand::Rng;
+use crate::{BuilderParams, MemoryBuilder, StackBuilder, TestCaseBuilder};
+use rand::{Rng, RngCore};
 use revm_bytecode::{Bytecode, OpCode};
 use revm_interpreter::interpreter::ExtBytecode;
-use revm_primitives::Bytes;
+use revm_primitives::{Bytes, bytes::BytesMut};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod arithmetic;
 mod bitwise;
+mod system;
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     arithmetic::fill(map);
     bitwise::fill(map);
+    system::fill(map);
 }
 
 fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
@@ -46,5 +48,30 @@ fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
             )))
         }),
         ..Default::default()
+    })
+}
+
+fn default_memory_builder() -> MemoryBuilder {
+    Box::new(|_memory, _params| {})
+}
+
+fn ensure_memory_size_b_builder() -> MemoryBuilder {
+    Box::new(|memory, params| {
+        let size = params.input_size_b.next_multiple_of(32);
+        if memory.len() < size {
+            memory.resize(size);
+        }
+    })
+}
+
+fn default_stack_builder() -> StackBuilder {
+    Box::new(|_stack, _params| {})
+}
+
+fn random_bytes_size_a_builder() -> Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync> {
+    Box::new(|bytes, params| {
+        let mut rng = params.rng();
+        bytes.resize(params.input_size_a, 0);
+        rng.fill_bytes(bytes.as_mut());
     })
 }

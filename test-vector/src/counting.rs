@@ -2,8 +2,10 @@ use evm_guest::{Host, InstructionTable};
 use revm_bytecode::OpCode;
 use std::{collections::BTreeMap, sync::Mutex};
 
-pub(crate) static INSTRUCTION_COUNTER: InstructionCounter = InstructionCounter::new();
-pub(crate) static INSTRUCTION_TABLE_WITH_COUNTING: InstructionTable = instruction_table();
+thread_local! {
+    pub(crate) static INSTRUCTION_COUNTER: InstructionCounter = InstructionCounter::new();
+    pub(crate) static INSTRUCTION_TABLE_WITH_COUNTING: InstructionTable = instruction_table();
+}
 
 pub(crate) struct InstructionCounter {
     reentrant_lock: Mutex<()>,
@@ -82,7 +84,7 @@ const fn instruction_table() -> InstructionTable {
         ($op:expr, $inst:expr) => {
             table[$op as usize] = |interpreter: &mut evm_guest::Interpreter,
                                    host: &mut evm_guest::Host| {
-                INSTRUCTION_COUNTER.count($op);
+                INSTRUCTION_COUNTER.with(|c| c.count($op));
                 $inst(interpreter, host)
             }
         };

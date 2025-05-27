@@ -3926,6 +3926,7 @@ checksum = "a052afe63f2211d0b8be342ba4eff04b143be4bc77c2a96067ab6b90a90865d7"
 dependencies = [
  "bitvec",
  "once_cell",
+ "paste",
  "phf",
  "revm-primitives",
  "serde",
@@ -5232,9 +5233,11 @@ dependencies = [
  "itertools 0.14.0",
  "rand 0.9.1",
  "rand_xoshiro",
+ "rayon",
  "revm-bytecode",
  "revm-interpreter",
  "revm-primitives",
+ "serde_json",
 ]
 
 [[package]]

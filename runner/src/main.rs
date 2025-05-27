@@ -8,7 +8,7 @@ use revm_interpreter::InterpreterResult;
 use serde::Serialize;
 use sp1_sdk::{CpuProver, SP1Stdin};
 use std::sync::Mutex;
-use test_vector::{TEST_VECTORS, TestCase};
+use test_vector::{OPCODE_CYCLE_LUT, TEST_VECTORS, TestCase, TestCaseKind};
 
 const GUEST_BASELINE_ELF: &[u8] = include_bytes!("../elf/baseline/evm-guest");
 const GUEST_EXEC_ELF: &[u8] = include_bytes!("../elf/exec/evm-guest");
@@ -23,13 +23,14 @@ fn main() {
         "{prefix:<14} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {bar:40} {pos:>6}/{len:6}",
     )
     .unwrap();
-    let writer = Mutex::new(csv::Writer::from_path("results-alt.csv").unwrap());
+    let writer = Mutex::new(csv::Writer::from_path("results.csv").unwrap());
     let seeds = Xoshiro256Plus::seed_from_u64(42)
         .random_iter()
         .take(100)
         .collect::<Vec<u64>>();
     TEST_VECTORS
         .iter()
+        .filter(|(op, tc)| !OPCODE_CYCLE_LUT.contains_key(op) && tc.kind() == TestCaseKind::Simple)
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
         .for_each(|((op, builder), (idx, seed))| {
@@ -50,6 +51,8 @@ fn main() {
 struct TestCaseResult {
     opcode: &'static str,
     repetition: usize,
+    input_size_a: usize,
+    input_size_b: usize,
     baseline_instruction_count: u64,
     exec_instruction_count: u64,
     evm_gas: u64,
@@ -70,12 +73,16 @@ fn run_test(client: &CpuProver, op: OpCode, tc: TestCase) -> TestCaseResult {
     let evm_gas = result.gas.spent();
     let sp1_gas = report.gas.unwrap();
 
+    let input_size_a = tc.input_size_a();
+    let input_size_b = tc.input_size_b();
     let opcodes_usage = tc.count_opcodes();
     assert_eq!(opcodes_usage.get(op), Some(repetition));
 
     TestCaseResult {
         opcode: op.as_str(),
         repetition,
+        input_size_a,
+        input_size_b,
         baseline_instruction_count,
         exec_instruction_count,
         evm_gas,

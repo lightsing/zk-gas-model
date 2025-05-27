@@ -4,8 +4,11 @@ use itertools::Itertools;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256Plus;
 use revm_bytecode::{Bytecode, OpCode};
-use revm_interpreter::{InputsImpl, SharedMemory, Stack, interpreter::ExtBytecode};
-use revm_primitives::hardfork::SpecId;
+use revm_interpreter::{
+    CallInput, InputsImpl, SharedMemory, Stack, interpreter::ExtBytecode,
+    interpreter_types::ReturnData,
+};
+use revm_primitives::{Address, U256, address, bytes::BytesMut, hardfork::SpecId};
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
@@ -18,6 +21,16 @@ pub use counting::OpcodeUsage;
 
 mod filler;
 
+const N_DIM_INPUT_SIZE: usize = 2;
+
+pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, f64>> = LazyLock::new(|| {
+    serde_json::from_str::<BTreeMap<String, f64>>(include_str!("lut.json"))
+        .expect("Failed to parse opcode cycle LUT")
+        .into_iter()
+        .map(|(k, v)| (k.parse().unwrap(), v))
+        .collect()
+});
+
 pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = LazyLock::new(|| {
     let mut map = BTreeMap::new();
 
@@ -28,20 +41,25 @@ pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = Lazy
 
 pub(crate) type MemoryBuilder = Box<dyn Fn(&mut SharedMemory, BuilderParams) + Send + Sync>;
 pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sync>;
+pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> ExtBytecode + Send + Sync>;
+pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct BuilderParams {
     pub(crate) repetition: usize,
-    pub(crate) input_size: usize,
+    pub(crate) input_size_a: usize,
+    pub(crate) input_size_b: usize,
     pub(crate) random_seed: Option<u64>,
 }
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TestCaseKind {
-    /// The case cost only measures desi
+    /// The case only measures desired opcodes.
     #[default]
     Simple,
+    /// The case measures opcodes mixed with other opcodes.
+    Mixed,
 }
 
 pub struct TestCaseBuilder {
@@ -52,31 +70,34 @@ pub struct TestCaseBuilder {
     /// the repetition of the target measurement
     support_repetition: Range<usize>,
     /// the input size of the target measurement
-    support_input_size: Range<usize>,
+    support_input_sizes: [Vec<usize>; N_DIM_INPUT_SIZE],
 
     // interpreter builder
     memory_builder: MemoryBuilder,
     stack_builder: StackBuilder,
+    return_data_builder: ReturnDataBuilder,
     bytecode_builder: BytecodeBuilder,
-    inputs: InputsImpl,
+
+    input_builder: InputBuilder,
+    target_address: Address,
+    caller_address: Address,
+    call_value: U256,
+
     spec_id: SpecId,
 }
 
 pub struct TestCase {
     description: Arc<str>,
     repetition: usize,
-    input_size: usize,
+    input_size_a: usize,
+    input_size_b: usize,
     interpreter: Interpreter,
 }
 
 impl BuilderParams {
     pub fn rng(&self) -> Xoshiro256Plus {
         if let Some(seed) = self.random_seed {
-            let mut rng = Xoshiro256Plus::seed_from_u64(seed);
-            for _ in 0..self.input_size {
-                rng.jump();
-            }
-            rng
+            Xoshiro256Plus::seed_from_u64(seed)
         } else {
             Xoshiro256Plus::from_os_rng()
         }
@@ -84,15 +105,25 @@ impl BuilderParams {
 }
 
 impl TestCaseBuilder {
+    pub fn kind(&self) -> TestCaseKind {
+        self.kind
+    }
+
     pub fn build_all(&self, random_seed: Option<u64>) -> Vec<TestCase> {
         self.support_repetition
             .clone()
             .into_iter()
-            .cartesian_product(self.support_input_size.clone())
-            .map(|(repetition, input_size)| {
+            .cartesian_product(
+                self.support_input_sizes[0]
+                    .iter()
+                    .copied()
+                    .cartesian_product(self.support_input_sizes[1].iter().copied()),
+            )
+            .map(|(repetition, (input_size_a, input_size_b))| {
                 let params = BuilderParams {
                     repetition,
-                    input_size,
+                    input_size_a,
+                    input_size_b,
                     random_seed,
                 };
 
@@ -101,22 +132,38 @@ impl TestCaseBuilder {
                 let mut stack = Stack::new();
                 (self.stack_builder)(&mut stack, params);
                 let ext_bytecode = (self.bytecode_builder)(params);
+                let mut return_data = BytesMut::default();
+                (self.return_data_builder)(&mut return_data, params);
+                let return_data = return_data.freeze();
+
+                let mut input = BytesMut::default();
+                (self.input_builder)(&mut input, params);
+                let input = input.freeze();
+                let inputs = InputsImpl {
+                    target_address: self.target_address,
+                    caller_address: self.caller_address,
+                    input: CallInput::Bytes(input.into()),
+                    call_value: self.call_value,
+                    ..Default::default()
+                };
 
                 let mut interpreter = Interpreter::new(
                     shared_memory,
                     ext_bytecode,
-                    self.inputs.clone(),
+                    inputs,
                     false,
                     false,
                     self.spec_id,
                     u64::MAX,
                 );
                 interpreter.stack = stack;
+                interpreter.return_data.set_buffer(return_data.into());
 
                 TestCase {
                     description: self.description.clone(),
                     repetition,
-                    input_size,
+                    input_size_a,
+                    input_size_b,
                     interpreter,
                 }
             })
@@ -130,11 +177,15 @@ impl Default for TestCaseBuilder {
             description: Arc::from("DEFAULT"),
             kind: TestCaseKind::Simple,
             support_repetition: 1..2,
-            support_input_size: 1..2,
+            support_input_sizes: [vec![1], vec![1]],
             memory_builder: Box::new(|_memory: &mut SharedMemory, _params: BuilderParams| {}),
             stack_builder: Box::new(|_stack: &mut Stack, _params: BuilderParams| {}),
+            return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
             bytecode_builder: Box::new(|_params| ExtBytecode::new(Bytecode::default())),
-            inputs: Default::default(),
+            input_builder: Box::new(|_input: &mut BytesMut, _params: BuilderParams| {}),
+            target_address: address!("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
+            caller_address: address!("0xcafecafecafecafecafecafecafecafecafecafe"),
+            call_value: U256::ZERO,
             spec_id: SpecId::OSAKA,
         }
     }
@@ -150,9 +201,14 @@ impl TestCase {
         self.repetition
     }
 
-    /// the input size of the target measurement
-    pub fn input_size(&self) -> usize {
-        self.input_size
+    /// the input size A of the target measurement
+    pub fn input_size_a(&self) -> usize {
+        self.input_size_a
+    }
+
+    /// the input size B of the target measurement
+    pub fn input_size_b(&self) -> usize {
+        self.input_size_b
     }
 
     pub fn interpreter(&self) -> &Interpreter {
@@ -160,13 +216,16 @@ impl TestCase {
     }
 
     pub fn count_opcodes(mut self) -> OpcodeUsage {
-        let guard = INSTRUCTION_COUNTER.lock();
-        guard.reset();
-        self.interpreter
-            .run_plain(&INSTRUCTION_TABLE_WITH_COUNTING, &mut Host);
-        let usage = guard.read();
-        guard.reset();
-        usage
+        INSTRUCTION_COUNTER.with(|counter| {
+            let guard = counter.lock();
+            guard.reset();
+            INSTRUCTION_TABLE_WITH_COUNTING.with(|table| {
+                self.interpreter.run_plain(table, &mut Host);
+            });
+            let usage = guard.read();
+            guard.reset();
+            usage
+        })
     }
 }
 
@@ -175,7 +234,7 @@ impl Debug for TestCaseBuilder {
         f.debug_struct("TestCaseBuilder")
             .field("description", &self.description)
             .field("repetition", &self.support_repetition)
-            .field("support_input_size", &self.support_input_size)
+            .field("support_input_size", &self.support_input_sizes)
             .finish()
     }
 }
@@ -185,7 +244,8 @@ impl Debug for TestCase {
         f.debug_struct("TestCase")
             .field("description", &self.description)
             .field("repetition", &self.repetition)
-            .field("input_size", &self.input_size)
+            .field("input_size_a", &self.input_size_a)
+            .field("input_size_b", &self.input_size_b)
             .finish()
     }
 }
@@ -194,8 +254,8 @@ impl Display for TestCase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TestCase({}x{}#{})",
-            self.description, self.repetition, self.input_size
+            "TestCase({}x{}#{}x{})",
+            self.description, self.repetition, self.input_size_a, self.input_size_b
         )
     }
 }
@@ -203,15 +263,19 @@ impl Display for TestCase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rayon::prelude::*;
 
     #[test]
     fn test_works() {
-        for (op, builder) in TEST_VECTORS.iter() {
+        TEST_VECTORS.iter().par_bridge().for_each(|(op, builder)| {
             let tcs = builder.build_all(Some(42));
             assert_eq!(
                 tcs.len(),
-                builder.support_repetition.len() * builder.support_input_size.len()
+                builder.support_repetition.len()
+                    * builder.support_input_sizes[0].len()
+                    * builder.support_input_sizes[1].len()
             );
+            println!("{op}: {} test cases", tcs.len());
             for tc in tcs.into_iter() {
                 let repetition = tc.repetition();
                 let usage = tc.count_opcodes();
@@ -221,6 +285,6 @@ mod tests {
                     "{op}#{repetition} {usage:?}"
                 );
             }
-        }
+        })
     }
 }
