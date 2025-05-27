@@ -76,7 +76,14 @@ fn run_test(client: &CpuProver, op: OpCode, tc: TestCase) -> TestCaseResult {
     let input_size_a = tc.input_size_a();
     let input_size_b = tc.input_size_b();
     let opcodes_usage = tc.count_opcodes();
-    assert_eq!(opcodes_usage.get(op), Some(repetition));
+    assert_eq!(
+        opcodes_usage.get(op),
+        Some(repetition),
+        "Opcode usage mismatch for {}: expected {}, got {}",
+        op,
+        repetition,
+        opcodes_usage.get(op).unwrap_or(0)
+    );
 
     TestCaseResult {
         opcode: op.as_str(),
