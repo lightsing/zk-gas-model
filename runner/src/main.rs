@@ -33,6 +33,7 @@ fn main() {
         .filter(|(op, tc)| !OPCODE_CYCLE_LUT.contains_key(op) && tc.kind() == TestCaseKind::Simple)
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
+        .panic_fuse()
         .for_each(|((op, builder), (idx, seed))| {
             let tcs = builder.build_all(Some(*seed));
 

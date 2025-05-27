@@ -267,24 +267,28 @@ mod tests {
 
     #[test]
     fn test_works() {
-        TEST_VECTORS.iter().par_bridge().for_each(|(op, builder)| {
-            let tcs = builder.build_all(Some(42));
-            assert_eq!(
-                tcs.len(),
-                builder.support_repetition.len()
-                    * builder.support_input_sizes[0].len()
-                    * builder.support_input_sizes[1].len()
-            );
-            println!("{op}: {} test cases", tcs.len());
-            for tc in tcs.into_iter() {
-                let repetition = tc.repetition();
-                let usage = tc.count_opcodes();
+        TEST_VECTORS
+            .iter()
+            .par_bridge()
+            .panic_fuse()
+            .for_each(|(op, builder)| {
+                let tcs = builder.build_all(Some(42));
                 assert_eq!(
-                    usage.get(*op),
-                    Some(repetition),
-                    "{op}#{repetition} {usage:?}"
+                    tcs.len(),
+                    builder.support_repetition.len()
+                        * builder.support_input_sizes[0].len()
+                        * builder.support_input_sizes[1].len()
                 );
-            }
-        })
+                println!("{op}: {} test cases", tcs.len());
+                for tc in tcs.into_iter() {
+                    let repetition = tc.repetition();
+                    let usage = tc.count_opcodes();
+                    assert_eq!(
+                        usage.get(*op),
+                        Some(repetition),
+                        "{op}#{repetition} {usage:?}"
+                    );
+                }
+            })
     }
 }
