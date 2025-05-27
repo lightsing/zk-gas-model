@@ -71,7 +71,7 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     _ => TestCaseKind::Simple,
                 },
                 support_repetition: match op {
-                    OpCode::CALLDATACOPY => 0..1024 / 3,
+                    OpCode::CALLDATACOPY => 1..1024 / 3,
                     _ => 1..1025,
                 },
                 support_input_sizes: {
@@ -124,7 +124,7 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 Arc::new(TestCaseBuilder {
                     description: Arc::from(op.as_str()),
                     support_repetition: match op {
-                        OpCode::CODECOPY => 0..1024 / 3,
+                        OpCode::CODECOPY => 1..1024 / 3,
                         _ => 1..1025,
                     },
                     support_input_sizes: {
@@ -166,7 +166,7 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 Arc::new(TestCaseBuilder {
                     description: Arc::from(op.as_str()),
                     support_repetition: match op {
-                        OpCode::RETURNDATACOPY => 0..1024 / 3,
+                        OpCode::RETURNDATACOPY => 1..1024 / 3,
                         _ => 1..1025,
                     },
                     memory_builder: match op {
