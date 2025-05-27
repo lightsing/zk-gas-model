@@ -106,8 +106,8 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 bytecode_builder: Box::new(move |params| {
                     ExtBytecode::new(Bytecode::new_legacy(Bytes::from(match op {
                         OpCode::CALLDATALOAD => [OpCode::CALLDATASIZE.get(), OpCode::POP.get()]
-                            .repeat(params.input_size_a),
-                        _ => [op.get()].repeat(params.input_size_a),
+                            .repeat(params.repetition),
+                        _ => [op.get()].repeat(params.repetition),
                     })))
                 }),
                 input_builder: random_bytes_size_a_builder(),
@@ -149,7 +149,7 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                         _ => default_stack_builder(),
                     },
                     bytecode_builder: Box::new(move |params| {
-                        let mut head = [op.get()].repeat(params.input_size_a);
+                        let mut head = [op.get()].repeat(params.repetition);
                         head.resize(params.input_size_a, OpCode::STOP.get());
                         ExtBytecode::new(Bytecode::new_legacy(Bytes::from(head)))
                     }),
@@ -185,9 +185,9 @@ pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     },
                     return_data_builder: random_bytes_size_a_builder(),
                     bytecode_builder: Box::new(move |params| {
-                        let mut head = [op.get()].repeat(params.input_size_a);
-                        head.resize(params.input_size_a, OpCode::STOP.get());
-                        ExtBytecode::new(Bytecode::new_legacy(Bytes::from(head)))
+                        ExtBytecode::new(Bytecode::new_legacy(Bytes::from(
+                            [op.get()].repeat(params.repetition),
+                        )))
                     }),
                     ..Default::default()
                 }),
