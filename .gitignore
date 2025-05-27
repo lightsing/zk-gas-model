@@ -15,5 +15,9 @@ pgo-data.profdata
 # Env
 .env
 
+# Python
 .venv
+__pycache__
+*.pyc
+
 runner/elf
