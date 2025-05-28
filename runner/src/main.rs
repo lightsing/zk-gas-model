@@ -30,7 +30,9 @@ fn main() {
         .collect::<Vec<u64>>();
     TEST_VECTORS
         .iter()
-        .filter(|(op, tc)| !OPCODE_CYCLE_LUT.contains_key(op) && tc.kind() == TestCaseKind::Simple)
+        .filter(|(op, tc)| {
+            !OPCODE_CYCLE_LUT.contains_key(op) && matches!(tc.kind(), TestCaseKind::ConstantSimple)
+        })
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
         .panic_fuse()

@@ -1,18 +1,19 @@
 use crate::{BuilderParams, MemoryBuilder, StackBuilder, TestCaseBuilder};
 use rand::{Rng, RngCore};
 use revm_bytecode::{Bytecode, OpCode};
-use revm_interpreter::interpreter::ExtBytecode;
 use revm_primitives::{Bytes, bytes::BytesMut};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod arithmetic;
 mod bitwise;
+mod stack;
 mod system;
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     arithmetic::fill(map);
     bitwise::fill(map);
     system::fill(map);
+    stack::fill(map);
 }
 
 fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
@@ -42,11 +43,7 @@ fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
                 assert!(stack.push(rng.random()));
             }
         }),
-        bytecode_builder: Box::new(move |params| {
-            ExtBytecode::new(Bytecode::new_legacy(Bytes::from(
-                [opcode.get()].repeat(params.repetition),
-            )))
-        }),
+        bytecode_builder: default_bytecode_builder(opcode),
         ..Default::default()
     })
 }
@@ -74,4 +71,8 @@ fn random_bytes_size_a_builder() -> Box<dyn Fn(&mut BytesMut, BuilderParams) + S
         bytes.resize(params.input_size_a, 0);
         rng.fill_bytes(bytes.as_mut());
     })
+}
+
+fn default_bytecode_builder(op: OpCode) -> Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync> {
+    Box::new(move |params| Bytecode::new_legacy(Bytes::from([op.get()].repeat(params.repetition))))
 }

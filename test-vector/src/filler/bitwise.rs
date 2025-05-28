@@ -2,7 +2,7 @@ use crate::{TestCaseBuilder, filler::random_stack_io};
 use revm_bytecode::OpCode;
 use std::{collections::BTreeMap, sync::Arc};
 
-pub(crate) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
+pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     [
         OpCode::LT,
         OpCode::GT,

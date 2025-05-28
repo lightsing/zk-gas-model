@@ -21,8 +21,6 @@ pub use counting::OpcodeUsage;
 
 mod filler;
 
-const N_DIM_INPUT_SIZE: usize = 2;
-
 pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, f64>> = LazyLock::new(|| {
     serde_json::from_str::<BTreeMap<String, f64>>(include_str!("lut.json"))
         .expect("Failed to parse opcode cycle LUT")
@@ -42,7 +40,7 @@ pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = Lazy
 pub(crate) type MemoryBuilder = Box<dyn Fn(&mut SharedMemory, BuilderParams) + Send + Sync>;
 pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sync>;
 pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
-pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> ExtBytecode + Send + Sync>;
+pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync>;
 pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 
 #[derive(Debug, Copy, Clone)]
@@ -55,22 +53,28 @@ pub(crate) struct BuilderParams {
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub enum TestCaseKind {
-    /// The case only measures desired opcodes.
+    /// The case only measures desired opcodes and has fixed input sizes.
     #[default]
-    Simple,
-    /// The case measures opcodes mixed with other opcodes.
-    Mixed,
+    ConstantSimple,
+    /// The case measures opcodes mixed with other opcodes and has fixed input sizes.
+    ConstantMixed,
+    /// The case only measures desired opcodes with dynamic input sizes.
+    DynamicSimple,
+    /// The case measures opcodes mixed with other opcodes and has dynamic input sizes.
+    DynamicMixed,
 }
 
 pub struct TestCaseBuilder {
     /// the description of the test case
     description: Arc<str>,
-    /// the description of the test case
+    /// the kind of the test case
     kind: TestCaseKind,
     /// the repetition of the target measurement
     support_repetition: Range<usize>,
-    /// the input size of the target measurement
-    support_input_sizes: [Vec<usize>; N_DIM_INPUT_SIZE],
+    /// the input size A of the target measurement
+    support_input_size_a: Vec<usize>,
+    /// the input size B of the target measurement
+    support_input_size_b: Vec<usize>,
 
     // interpreter builder
     memory_builder: MemoryBuilder,
@@ -88,6 +92,7 @@ pub struct TestCaseBuilder {
 
 pub struct TestCase {
     description: Arc<str>,
+    kind: TestCaseKind,
     repetition: usize,
     input_size_a: usize,
     input_size_b: usize,
@@ -114,10 +119,10 @@ impl TestCaseBuilder {
             .clone()
             .into_iter()
             .cartesian_product(
-                self.support_input_sizes[0]
+                self.support_input_size_a
                     .iter()
                     .copied()
-                    .cartesian_product(self.support_input_sizes[1].iter().copied()),
+                    .cartesian_product(self.support_input_size_b.iter().copied()),
             )
             .map(|(repetition, (input_size_a, input_size_b))| {
                 let params = BuilderParams {
@@ -131,7 +136,8 @@ impl TestCaseBuilder {
                 (self.memory_builder)(&mut shared_memory, params);
                 let mut stack = Stack::new();
                 (self.stack_builder)(&mut stack, params);
-                let ext_bytecode = (self.bytecode_builder)(params);
+                let bytecode = (self.bytecode_builder)(params);
+                let ext_bytecode = ExtBytecode::new(bytecode);
                 let mut return_data = BytesMut::default();
                 (self.return_data_builder)(&mut return_data, params);
                 let return_data = return_data.freeze();
@@ -161,6 +167,7 @@ impl TestCaseBuilder {
 
                 TestCase {
                     description: self.description.clone(),
+                    kind: self.kind,
                     repetition,
                     input_size_a,
                     input_size_b,
@@ -175,13 +182,14 @@ impl Default for TestCaseBuilder {
     fn default() -> Self {
         Self {
             description: Arc::from("DEFAULT"),
-            kind: TestCaseKind::Simple,
+            kind: TestCaseKind::ConstantSimple,
             support_repetition: 1..2,
-            support_input_sizes: [vec![1], vec![1]],
+            support_input_size_a: vec![1],
+            support_input_size_b: vec![1],
             memory_builder: Box::new(|_memory: &mut SharedMemory, _params: BuilderParams| {}),
             stack_builder: Box::new(|_stack: &mut Stack, _params: BuilderParams| {}),
             return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
-            bytecode_builder: Box::new(|_params| ExtBytecode::new(Bytecode::default())),
+            bytecode_builder: Box::new(|_params| Bytecode::default()),
             input_builder: Box::new(|_input: &mut BytesMut, _params: BuilderParams| {}),
             target_address: address!("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
             caller_address: address!("0xcafecafecafecafecafecafecafecafecafecafe"),
@@ -194,6 +202,10 @@ impl Default for TestCaseBuilder {
 impl TestCase {
     pub fn description(&self) -> &str {
         self.description.as_ref()
+    }
+
+    pub fn kind(&self) -> TestCaseKind {
+        self.kind
     }
 
     /// the repetition of the target measurement
@@ -234,7 +246,8 @@ impl Debug for TestCaseBuilder {
         f.debug_struct("TestCaseBuilder")
             .field("description", &self.description)
             .field("repetition", &self.support_repetition)
-            .field("support_input_size", &self.support_input_sizes)
+            .field("support_input_size_a", &self.support_input_size_a)
+            .field("support_input_size_b", &self.support_input_size_b)
             .finish()
     }
 }
@@ -266,29 +279,97 @@ mod tests {
     use rayon::prelude::*;
 
     #[test]
-    fn test_works() {
-        TEST_VECTORS
-            .iter()
-            .par_bridge()
-            .panic_fuse()
-            .for_each(|(op, builder)| {
-                let tcs = builder.build_all(Some(42));
-                assert_eq!(
-                    tcs.len(),
-                    builder.support_repetition.len()
-                        * builder.support_input_sizes[0].len()
-                        * builder.support_input_sizes[1].len()
-                );
-                println!("{op}: {} test cases", tcs.len());
-                for tc in tcs.into_iter() {
-                    let repetition = tc.repetition();
-                    let usage = tc.count_opcodes();
+    fn assert_kinds() {
+        for (op, builder) in TEST_VECTORS.iter() {
+            match builder.kind {
+                TestCaseKind::ConstantSimple | TestCaseKind::ConstantMixed => {
                     assert_eq!(
-                        usage.get(*op),
-                        Some(repetition),
-                        "{op}#{repetition} {usage:?}"
+                        builder.support_input_size_a.len(),
+                        1,
+                        "{op}: constant test cases must have exactly one input size A"
+                    );
+                    assert_eq!(
+                        builder.support_input_size_b.len(),
+                        1,
+                        "{op}: constant test cases must have exactly one input size B"
+                    );
+                    assert_eq!(
+                        builder.support_input_size_a[0], 1,
+                        "{op}: constant test cases must have input size A of 1"
+                    );
+                    assert_eq!(
+                        builder.support_input_size_b[0], 1,
+                        "{op}: constant test cases must have input size B of 1"
                     );
                 }
-            })
+                TestCaseKind::DynamicSimple | TestCaseKind::DynamicMixed => {
+                    assert!(
+                        builder.support_input_size_a.len() != 1
+                            || builder.support_input_size_b.len() != 1,
+                        "{op}: dynamic test cases must have more than one input size",
+                    )
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_works_constant_simple() {
+        TEST_VECTORS
+            .iter()
+            .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::ConstantSimple))
+            .par_bridge()
+            .panic_fuse()
+            .for_each(|(op, builder)| test_works_inner(op, builder))
+    }
+
+    #[test]
+    fn test_works_dynamic_simple() {
+        TEST_VECTORS
+            .iter()
+            .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::DynamicSimple))
+            .par_bridge()
+            .panic_fuse()
+            .for_each(|(op, builder)| test_works_inner(op, builder))
+    }
+
+    #[test]
+    fn test_works_constant_mixed() {
+        TEST_VECTORS
+            .iter()
+            .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::ConstantMixed))
+            .par_bridge()
+            .panic_fuse()
+            .for_each(|(op, builder)| test_works_inner(op, builder))
+    }
+
+    #[test]
+    fn test_works_dynamic_mixed() {
+        TEST_VECTORS
+            .iter()
+            .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::DynamicMixed))
+            .par_bridge()
+            .panic_fuse()
+            .for_each(|(op, builder)| test_works_inner(op, builder))
+    }
+
+    fn test_works_inner(op: &OpCode, builder: &TestCaseBuilder) {
+        let tcs = builder.build_all(Some(42));
+        assert_eq!(
+            tcs.len(),
+            builder.support_repetition.len()
+                * builder.support_input_size_a.len()
+                * builder.support_input_size_b.len()
+        );
+        println!("{op}: {} test cases", tcs.len());
+        for tc in tcs.into_iter() {
+            let repetition = tc.repetition();
+            let usage = tc.count_opcodes();
+            assert_eq!(
+                usage.get(*op),
+                Some(repetition),
+                "{op}#{repetition} {usage:?}"
+            );
+        }
     }
 }
