@@ -38,7 +38,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 rng.fill_bytes(memory.context_memory_mut().as_mut());
             }),
             stack_builder: Box::new(|stack, params| {
-                for _ in 0..params.repetition {
+                for _ in 1..=params.repetition {
                     assert!(stack.push(U256::from(params.input_size_a)));
                 }
                 assert!(stack.push(U256::ZERO))
@@ -84,14 +84,14 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 stack_builder: match op {
                     OpCode::CALLDATALOAD => Box::new(|stack, params| {
                         let mut rng = params.rng();
-                        for _ in 0..params.repetition {
+                        for _ in 1..=params.repetition {
                             // load a word randomly from the call data
                             let value = U256::from(rng.random_range(0..params.input_size_a));
                             assert!(stack.push(value));
                         }
                     }),
                     OpCode::CALLDATACOPY => Box::new(|stack, params| {
-                        for _ in 0..params.repetition {
+                        for _ in 1..=params.repetition {
                             assert!(stack.push(U256::from(params.input_size_b)));
                             assert!(stack.push(U256::ZERO));
                             assert!(stack.push(U256::ZERO));
@@ -135,7 +135,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     },
                     stack_builder: match op {
                         OpCode::CODECOPY => Box::new(|stack, params| {
-                            for _ in 0..params.repetition {
+                            for _ in 1..=params.repetition {
                                 assert!(stack.push(U256::from(params.input_size_b)));
                                 assert!(stack.push(U256::ZERO));
                                 assert!(stack.push(U256::ZERO));
@@ -172,7 +172,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     },
                     stack_builder: match op {
                         OpCode::RETURNDATACOPY => Box::new(|stack, params| {
-                            for _ in 0..params.repetition {
+                            for _ in 1..=params.repetition {
                                 assert!(stack.push(U256::from(params.input_size_b)));
                                 assert!(stack.push(U256::ZERO));
                                 assert!(stack.push(U256::ZERO));
