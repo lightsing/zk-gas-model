@@ -20,7 +20,6 @@ fn fill_push(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             op,
             Arc::new(TestCaseBuilder {
                 description: Arc::from(op.as_str()),
-                kind: TestCaseKind::ConstantSimple,
                 support_repetition: 1..1025,
                 bytecode_builder: Box::new(move |params| {
                     let mut rng = params.rng();
@@ -31,7 +30,7 @@ fn fill_push(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                             bytes.put_u8(rng.random());
                         }
                     }
-                    Bytecode::new_legacy(Bytes::from(bytes.repeat(params.repetition)))
+                    Bytecode::new_legacy(bytes.freeze().into())
                 }),
                 ..Default::default()
             }),
@@ -47,7 +46,6 @@ fn fill_dup_swap(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>, dup: bool) {
             op,
             Arc::new(TestCaseBuilder {
                 description: Arc::from(op.as_str()),
-                kind: TestCaseKind::ConstantSimple,
                 support_repetition: if dup { 1..(1024 - i) } else { 1..1024 },
                 stack_builder: Box::new(move |stack, params| {
                     let mut rng = params.rng();

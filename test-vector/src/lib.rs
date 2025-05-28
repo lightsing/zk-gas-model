@@ -354,6 +354,10 @@ mod tests {
     }
 
     fn test_works_inner(op: &OpCode, builder: &TestCaseBuilder) {
+        let expected_length = builder.support_repetition.len()
+            * builder.support_input_size_a.len()
+            * builder.support_input_size_b.len();
+        println!("{op}: {expected_length} test cases");
         let tcs = builder.build_all(Some(42));
         assert_eq!(
             tcs.len(),
@@ -361,7 +365,6 @@ mod tests {
                 * builder.support_input_size_a.len()
                 * builder.support_input_size_b.len()
         );
-        println!("{op}: {} test cases", tcs.len());
         for tc in tcs.into_iter() {
             let repetition = tc.repetition();
             let usage = tc.count_opcodes();
