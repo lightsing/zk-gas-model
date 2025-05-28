@@ -46,7 +46,8 @@ fn fill_dup_swap(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>, dup: bool) {
                 support_repetition: if dup { 1..(1024 - i) } else { 1..1024 },
                 stack_builder: Box::new(move |stack, params| {
                     let mut rng = params.rng();
-                    for _ in 0..i {
+                    let n = if dup { i + 1 } else { i + 2 };
+                    for _ in 0..n {
                         assert!(stack.push(rng.random()));
                     }
                 }),
