@@ -42,6 +42,7 @@ pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sy
 pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync>;
 pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
+pub(crate) type ParamsFilter = Box<dyn Fn(&BuilderParams) -> bool + Send + Sync>;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct BuilderParams {
@@ -75,6 +76,8 @@ pub struct TestCaseBuilder {
     support_input_size_a: Vec<usize>,
     /// the input size B of the target measurement
     support_input_size_b: Vec<usize>,
+
+    params_filter: ParamsFilter,
 
     // interpreter builder
     memory_builder: MemoryBuilder,
@@ -124,13 +127,16 @@ impl TestCaseBuilder {
                     .copied()
                     .cartesian_product(self.support_input_size_b.iter().copied()),
             )
-            .map(|(repetition, (input_size_a, input_size_b))| {
+            .filter_map(|(repetition, (input_size_a, input_size_b))| {
                 let params = BuilderParams {
                     repetition,
                     input_size_a,
                     input_size_b,
                     random_seed,
                 };
+                if !(self.params_filter)(&params) {
+                    return None;
+                }
 
                 let mut shared_memory = SharedMemory::new();
                 (self.memory_builder)(&mut shared_memory, params);
@@ -165,14 +171,14 @@ impl TestCaseBuilder {
                 interpreter.stack = stack;
                 interpreter.return_data.set_buffer(return_data.into());
 
-                TestCase {
+                Some(TestCase {
                     description: self.description.clone(),
                     kind: self.kind,
                     repetition,
                     input_size_a,
                     input_size_b,
                     interpreter,
-                }
+                })
             })
             .collect::<Vec<TestCase>>()
     }
@@ -186,6 +192,7 @@ impl Default for TestCaseBuilder {
             support_repetition: 1..2,
             support_input_size_a: vec![1],
             support_input_size_b: vec![1],
+            params_filter: Box::new(|_params| true),
             memory_builder: Box::new(|_memory: &mut SharedMemory, _params: BuilderParams| {}),
             stack_builder: Box::new(|_stack: &mut Stack, _params: BuilderParams| {}),
             return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
@@ -357,21 +364,20 @@ mod tests {
         let expected_length = builder.support_repetition.len()
             * builder.support_input_size_a.len()
             * builder.support_input_size_b.len();
-        println!("{op}: {expected_length} test cases");
         let tcs = builder.build_all(Some(42));
-        assert_eq!(
-            tcs.len(),
-            builder.support_repetition.len()
-                * builder.support_input_size_a.len()
-                * builder.support_input_size_b.len()
+        println!(
+            "{op}: max {expected_length} test cases, actual {} test cases",
+            tcs.len()
         );
         for tc in tcs.into_iter() {
             let repetition = tc.repetition();
+            let input_size_a = tc.input_size_a();
+            let input_size_b = tc.input_size_b();
             let usage = tc.count_opcodes();
             assert_eq!(
                 usage.get(*op),
                 Some(repetition),
-                "{op}#{repetition} {usage:?}"
+                "{op}#{repetition}({input_size_a}x{input_size_b}) {usage:?}"
             );
         }
     }

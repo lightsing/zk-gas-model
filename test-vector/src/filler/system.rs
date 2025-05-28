@@ -30,6 +30,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024,
             // 10M gas ~ 53333184 bytes (~50.8MB) input
+            // input size
             support_input_size_a: (0..21).map(|e| 2usize.pow(e)).collect(),
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
@@ -72,11 +73,14 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     OpCode::CALLDATACOPY => 1..1024 / 3,
                     _ => 1..1025,
                 },
+                // call data size
                 support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(), // max 128KB
+                // copy size
                 support_input_size_b: match op {
                     OpCode::CALLDATACOPY => (0..17).map(|e| 2usize.pow(e)).collect::<Vec<_>>(),
                     _ => vec![1],
                 },
+                params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
                 memory_builder: match op {
                     OpCode::CALLDATACOPY => ensure_memory_size_b_builder(),
                     _ => default_memory_builder(),
@@ -124,11 +128,17 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                         OpCode::CODECOPY => 1..1024 / 3,
                         _ => 1..1025,
                     },
+                    // code size
                     support_input_size_a: (0..14).map(|e| 2usize.pow(e)).collect(), // max 24KB
+                    // copy size
                     support_input_size_b: match op {
                         OpCode::CODECOPY => (0..14).map(|e| 2usize.pow(e)).collect(),
                         _ => vec![1],
                     },
+                    params_filter: Box::new(|params| {
+                        params.input_size_a >= params.repetition
+                            && params.input_size_b <= params.input_size_a
+                    }),
                     memory_builder: match op {
                         OpCode::CODECOPY => ensure_memory_size_b_builder(),
                         _ => default_memory_builder(),
@@ -145,6 +155,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     },
                     bytecode_builder: Box::new(move |params| {
                         let mut head = [op.get()].repeat(params.repetition);
+                        assert!(params.input_size_a >= params.repetition);
                         head.resize(params.input_size_a, OpCode::STOP.get());
                         Bytecode::new_legacy(Bytes::from(head))
                     }),
@@ -161,7 +172,14 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 Arc::new(TestCaseBuilder {
                     description: Arc::from(op.as_str()),
                     kind: TestCaseKind::DynamicSimple,
+                    // return data size
                     support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(),
+                    // copy size
+                    support_input_size_b: match op {
+                        OpCode::RETURNDATACOPY => (0..17).map(|e| 2usize.pow(e)).collect(),
+                        _ => vec![1],
+                    },
+                    params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
                     support_repetition: match op {
                         OpCode::RETURNDATACOPY => 1..1024 / 3,
                         _ => 1..1025,
