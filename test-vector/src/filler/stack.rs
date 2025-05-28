@@ -1,10 +1,7 @@
-use crate::{TestCaseBuilder, TestCaseKind, filler::default_bytecode_builder};
+use crate::{TestCaseBuilder, filler::default_bytecode_builder};
 use rand::Rng;
 use revm_bytecode::{Bytecode, OpCode};
-use revm_primitives::{
-    Bytes,
-    bytes::{BufMut, BytesMut},
-};
+use revm_primitives::bytes::{BufMut, BytesMut};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
@@ -24,7 +21,7 @@ fn fill_push(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 bytecode_builder: Box::new(move |params| {
                     let mut rng = params.rng();
                     let mut bytes = BytesMut::with_capacity((i + 1) * params.repetition);
-                    for i in 0..params.repetition {
+                    for _ in 1..=params.repetition {
                         bytes.put_u8(op.get());
                         for _ in 0..i {
                             bytes.put_u8(rng.random());
