@@ -21,3 +21,8 @@ __pycache__
 *.pyc
 
 runner/elf
+
+# result file
+*.csv
+*.zst
+*.bak
