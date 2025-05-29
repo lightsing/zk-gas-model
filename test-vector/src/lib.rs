@@ -42,13 +42,11 @@ pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sy
 pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync>;
 pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
-pub(crate) type ParamsFilter = Box<dyn Fn(&BuilderParams) -> bool + Send + Sync>;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct BuilderParams {
     pub(crate) repetition: usize,
-    pub(crate) input_size_a: usize,
-    pub(crate) input_size_b: usize,
+    pub(crate) input_size: usize,
     pub(crate) random_seed: Option<u64>,
 }
 
@@ -72,12 +70,8 @@ pub struct TestCaseBuilder {
     kind: TestCaseKind,
     /// the repetition of the target measurement
     support_repetition: Range<usize>,
-    /// the input size A of the target measurement
-    support_input_size_a: Vec<usize>,
-    /// the input size B of the target measurement
-    support_input_size_b: Vec<usize>,
-
-    params_filter: ParamsFilter,
+    /// the input size of the target measurement
+    support_input_size: Vec<usize>,
 
     // interpreter builder
     memory_builder: MemoryBuilder,
@@ -97,8 +91,7 @@ pub struct TestCase {
     description: Arc<str>,
     kind: TestCaseKind,
     repetition: usize,
-    input_size_a: usize,
-    input_size_b: usize,
+    input_size: usize,
     interpreter: Interpreter,
 }
 
@@ -121,22 +114,13 @@ impl TestCaseBuilder {
         self.support_repetition
             .clone()
             .into_iter()
-            .cartesian_product(
-                self.support_input_size_a
-                    .iter()
-                    .copied()
-                    .cartesian_product(self.support_input_size_b.iter().copied()),
-            )
-            .filter_map(|(repetition, (input_size_a, input_size_b))| {
+            .cartesian_product(self.support_input_size.iter().copied())
+            .filter_map(|(repetition, input_size)| {
                 let params = BuilderParams {
                     repetition,
-                    input_size_a,
-                    input_size_b,
+                    input_size,
                     random_seed,
                 };
-                if !(self.params_filter)(&params) {
-                    return None;
-                }
 
                 let mut shared_memory = SharedMemory::new();
                 (self.memory_builder)(&mut shared_memory, params);
@@ -175,8 +159,7 @@ impl TestCaseBuilder {
                     description: self.description.clone(),
                     kind: self.kind,
                     repetition,
-                    input_size_a,
-                    input_size_b,
+                    input_size,
                     interpreter,
                 })
             })
@@ -190,9 +173,7 @@ impl Default for TestCaseBuilder {
             description: Arc::from("DEFAULT"),
             kind: TestCaseKind::ConstantSimple,
             support_repetition: 1..2,
-            support_input_size_a: vec![1],
-            support_input_size_b: vec![1],
-            params_filter: Box::new(|_params| true),
+            support_input_size: vec![1],
             memory_builder: Box::new(|_memory: &mut SharedMemory, _params: BuilderParams| {}),
             stack_builder: Box::new(|_stack: &mut Stack, _params: BuilderParams| {}),
             return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
@@ -220,14 +201,9 @@ impl TestCase {
         self.repetition
     }
 
-    /// the input size A of the target measurement
-    pub fn input_size_a(&self) -> usize {
-        self.input_size_a
-    }
-
-    /// the input size B of the target measurement
-    pub fn input_size_b(&self) -> usize {
-        self.input_size_b
+    /// the input size of the target measurement
+    pub fn input_size(&self) -> usize {
+        self.input_size
     }
 
     pub fn interpreter(&self) -> &Interpreter {
@@ -253,8 +229,7 @@ impl Debug for TestCaseBuilder {
         f.debug_struct("TestCaseBuilder")
             .field("description", &self.description)
             .field("repetition", &self.support_repetition)
-            .field("support_input_size_a", &self.support_input_size_a)
-            .field("support_input_size_b", &self.support_input_size_b)
+            .field("support_input_size", &self.support_input_size)
             .finish()
     }
 }
@@ -264,8 +239,7 @@ impl Debug for TestCase {
         f.debug_struct("TestCase")
             .field("description", &self.description)
             .field("repetition", &self.repetition)
-            .field("input_size_a", &self.input_size_a)
-            .field("input_size_b", &self.input_size_b)
+            .field("input_size", &self.input_size)
             .finish()
     }
 }
@@ -274,8 +248,8 @@ impl Display for TestCase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "TestCase({}x{}#{}x{})",
-            self.description, self.repetition, self.input_size_a, self.input_size_b
+            "TestCase({}x{}[{}])",
+            self.description, self.repetition, self.input_size
         )
     }
 }
@@ -291,29 +265,20 @@ mod tests {
             match builder.kind {
                 TestCaseKind::ConstantSimple | TestCaseKind::ConstantMixed => {
                     assert_eq!(
-                        builder.support_input_size_a.len(),
+                        builder.support_input_size.len(),
                         1,
-                        "{op}: constant test cases must have exactly one input size A"
+                        "{op}: constant test cases must have exactly one input size"
                     );
                     assert_eq!(
-                        builder.support_input_size_b.len(),
-                        1,
-                        "{op}: constant test cases must have exactly one input size B"
-                    );
-                    assert_eq!(
-                        builder.support_input_size_a[0], 1,
-                        "{op}: constant test cases must have input size A of 1"
-                    );
-                    assert_eq!(
-                        builder.support_input_size_b[0], 1,
-                        "{op}: constant test cases must have input size B of 1"
+                        builder.support_input_size[0], 1,
+                        "{op}: constant test cases must have input size of 1"
                     );
                 }
                 TestCaseKind::DynamicSimple | TestCaseKind::DynamicMixed => {
-                    assert!(
-                        builder.support_input_size_a.len() != 1
-                            || builder.support_input_size_b.len() != 1,
-                        "{op}: dynamic test cases must have more than one input size",
+                    assert_ne!(
+                        builder.support_input_size.len(),
+                        1,
+                        "{op}: dynamic test cases must have more than one input size"
                     )
                 }
             }
@@ -361,9 +326,7 @@ mod tests {
     }
 
     fn test_works_inner(op: &OpCode, builder: &TestCaseBuilder) {
-        let expected_length = builder.support_repetition.len()
-            * builder.support_input_size_a.len()
-            * builder.support_input_size_b.len();
+        let expected_length = builder.support_repetition.len() * builder.support_input_size.len();
         let tcs = builder.build_all(Some(42));
         println!(
             "{op}: max {expected_length} test cases, actual {} test cases",
@@ -371,13 +334,12 @@ mod tests {
         );
         for tc in tcs.into_iter() {
             let repetition = tc.repetition();
-            let input_size_a = tc.input_size_a();
-            let input_size_b = tc.input_size_b();
+            let input_size = tc.input_size();
             let usage = tc.count_opcodes();
             assert_eq!(
                 usage.get(*op),
                 Some(repetition),
-                "{op}#{repetition}({input_size_a}x{input_size_b}) {usage:?}"
+                "{op}#{repetition}[{input_size}] {usage:?}"
             );
         }
     }

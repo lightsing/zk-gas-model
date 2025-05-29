@@ -10,8 +10,7 @@ pub struct TestRunResult {
 
     kind: TestCaseKind,
     repetition: usize,
-    input_size_a: usize,
-    input_size_b: usize,
+    input_size: usize,
 
     baseline_report: ExecutionReport,
     exec_report: ExecutionReport,
@@ -34,8 +33,7 @@ pub struct ConstantSimpleCaseResult {
 pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResult {
     let kind = tc.kind();
     let repetition = tc.repetition();
-    let input_size_a = tc.input_size_a();
-    let input_size_b = tc.input_size_b();
+    let input_size = tc.input_size();
 
     let mut stdin = SP1Stdin::new();
     stdin.write(&tc.interpreter());
@@ -50,8 +48,7 @@ pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResu
         opcode,
         kind,
         repetition,
-        input_size_a,
-        input_size_b,
+        input_size,
 
         baseline_report,
         exec_report,
@@ -63,6 +60,7 @@ pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResu
 
 impl TestRunResult {
     pub fn to_constant_simple_case_result(&self) -> ConstantSimpleCaseResult {
+        assert!(matches!(self.kind, TestCaseKind::ConstantSimple));
         assert_eq!(
             self.opcodes_usage.get(OpCode::STOP),
             Some(1),

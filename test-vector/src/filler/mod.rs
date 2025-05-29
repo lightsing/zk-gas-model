@@ -2,7 +2,7 @@ use crate::{BuilderParams, MemoryBuilder, StackBuilder, TestCaseBuilder};
 use rand::{Rng, RngCore};
 use revm_bytecode::{Bytecode, OpCode};
 use revm_primitives::{Bytes, bytes::BytesMut};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
 mod arithmetic;
 mod bitwise;
@@ -52,9 +52,9 @@ fn default_memory_builder() -> MemoryBuilder {
     Box::new(|_memory, _params| {})
 }
 
-fn ensure_memory_size_b_builder() -> MemoryBuilder {
+fn ensure_memory_input_size_builder() -> MemoryBuilder {
     Box::new(|memory, params| {
-        let size = params.input_size_b.next_multiple_of(32);
+        let size = params.input_size.next_multiple_of(32);
         if memory.len() < size {
             memory.resize(size);
         }
@@ -65,10 +65,13 @@ fn default_stack_builder() -> StackBuilder {
     Box::new(|_stack, _params| {})
 }
 
-fn random_bytes_size_a_builder() -> Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync> {
-    Box::new(|bytes, params| {
+fn random_bytes_random_size_builder(
+    range: Range<usize>,
+) -> Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync> {
+    Box::new(move |bytes, params| {
         let mut rng = params.rng();
-        bytes.resize(params.input_size_a, 0);
+        let size = rng.random_range(range.clone());
+        bytes.resize(size, 0);
         rng.fill_bytes(bytes.as_mut());
     })
 }
