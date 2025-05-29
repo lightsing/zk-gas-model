@@ -44,7 +44,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 rng.fill_bytes(memory.context_memory_mut().as_mut());
             }),
             stack_builder: Box::new(|stack, params| {
-                for _ in 1..=params.repetition {
+                for _ in 0..params.repetition {
                     assert!(stack.push(U256::from(params.input_size)));
                 }
                 assert!(stack.push(U256::ZERO))
@@ -82,7 +82,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                         OpCode::CALLDATALOAD => Box::new(|stack, params| {
                             let mut rng = params.rng();
                             let size = rng.random_range(0..2usize.pow(MAX_CALLDATA_SIZE_LOG2));
-                            for _ in 1..=params.repetition {
+                            for _ in 0..params.repetition {
                                 // load a word randomly from the call data
                                 let value = U256::from(rng.random_range(0..size));
                                 assert!(stack.push(value));
@@ -119,7 +119,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             support_input_size: (0..MAX_CALLDATA_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
-                for _ in 1..=params.repetition {
+                for _ in 0..params.repetition {
                     assert!(stack.push(U256::from(params.input_size)));
                     assert!(stack.push(U256::ZERO));
                     assert!(stack.push(U256::ZERO));
@@ -160,7 +160,7 @@ fn fill_code(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             support_input_size: (0..MAX_BYTECODE_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
-                for _ in 1..=params.repetition {
+                for _ in 0..params.repetition {
                     assert!(stack.push(U256::from(params.input_size)));
                     assert!(stack.push(U256::ZERO));
                     assert!(stack.push(U256::ZERO));
@@ -205,15 +205,20 @@ fn fill_return_data(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             support_repetition: 1..1024 / 3,
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
-                for _ in 1..=params.repetition {
+                for _ in 0..params.repetition {
                     assert!(stack.push(U256::from(params.input_size)));
                     assert!(stack.push(U256::ZERO));
                     assert!(stack.push(U256::ZERO));
                 }
             }),
-            return_data_builder: random_bytes_random_size_builder(
-                0..2usize.pow(MAX_RETURNDATA_SIZE_LOG2),
-            ),
+            // RETURNDATACOPY cannot copy out of offset
+            return_data_builder: Box::new(move |bytes, params| {
+                let mut rng = params.rng();
+                let size =
+                    rng.random_range(params.input_size..2usize.pow(MAX_RETURNDATA_SIZE_LOG2));
+                bytes.resize(size, 0);
+                rng.fill_bytes(bytes.as_mut());
+            }),
             bytecode_builder: default_bytecode_builder(OpCode::RETURNDATACOPY),
             ..Default::default()
         }),
