@@ -24,7 +24,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     ]
     .into_iter()
     .for_each(|op| {
-        map.insert(op, random_stack_io(op));
+        map.insert(op, Arc::new(random_stack_io(op)));
     });
 
     // Basically we put the args into the stack:

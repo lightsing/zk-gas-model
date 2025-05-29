@@ -26,7 +26,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     tx_info::fill(map);
 }
 
-fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
+fn random_stack_io(opcode: OpCode) -> TestCaseBuilder {
     let n_inputs = opcode.inputs();
     let io_diff = opcode.io_diff();
 
@@ -38,7 +38,7 @@ fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
         1024
     };
 
-    Arc::new(TestCaseBuilder {
+    TestCaseBuilder {
         description: Arc::from(opcode.as_str()),
         support_repetition: 1..max_repetition,
         stack_builder: Box::new(move |stack, params| {
@@ -55,7 +55,7 @@ fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
         }),
         bytecode_builder: default_bytecode_builder(opcode),
         ..Default::default()
-    })
+    }
 }
 
 fn ensure_memory_input_size_builder() -> MemoryBuilder {
