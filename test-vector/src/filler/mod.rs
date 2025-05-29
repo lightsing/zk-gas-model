@@ -50,10 +50,6 @@ fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
     })
 }
 
-fn default_memory_builder() -> MemoryBuilder {
-    Box::new(|_memory, _params| {})
-}
-
 fn ensure_memory_input_size_builder() -> MemoryBuilder {
     Box::new(|memory, params| {
         let size = params.input_size.next_multiple_of(32);

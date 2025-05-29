@@ -10,6 +10,11 @@ use revm_bytecode::{Bytecode, OpCode};
 use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
+const MAX_KECCAK_SIZE_LOG2: u32 = 21;
+const MAX_CALLDATA_SIZE_LOG2: u32 = 17;
+const MAX_BYTECODE_SIZE_LOG2: u32 = 14;
+const MAX_RETURNDATA_SIZE_LOG2: u32 = 17;
+
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     [OpCode::ADDRESS, OpCode::CALLER, OpCode::CALLVALUE]
         .into_iter()
@@ -31,7 +36,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             support_repetition: 1..1024,
             // 10M gas ~ 53333184 bytes (~50.8MB) input
             // input size
-            support_input_size: (0..21).map(|e| 2usize.pow(e)).collect(),
+            support_input_size: (0..MAX_KECCAK_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
                 let input_size = params.input_size;
@@ -76,7 +81,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     stack_builder: match op {
                         OpCode::CALLDATALOAD => Box::new(|stack, params| {
                             let mut rng = params.rng();
-                            let size = rng.random_range(0..17usize.pow(2));
+                            let size = rng.random_range(0..2usize.pow(MAX_CALLDATA_SIZE_LOG2));
                             for _ in 1..=params.repetition {
                                 // load a word randomly from the call data
                                 let value = U256::from(rng.random_range(0..size));
@@ -96,7 +101,9 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                         OpCode::CALLDATASIZE => default_bytecode_builder(op),
                         _ => unreachable!(),
                     },
-                    input_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+                    input_builder: random_bytes_random_size_builder(
+                        0..2usize.pow(MAX_CALLDATA_SIZE_LOG2),
+                    ),
                     ..Default::default()
                 }),
             );
@@ -109,7 +116,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             kind: TestCaseKind::DynamicSimple,
             support_repetition: 1..1024 / 3,
             // copy size
-            support_input_size: (0..17).map(|e| 2usize.pow(e)).collect(),
+            support_input_size: (0..MAX_CALLDATA_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
                 for _ in 1..=params.repetition {
@@ -119,7 +126,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                 }
             }),
             bytecode_builder: default_bytecode_builder(OpCode::CALLDATACOPY),
-            input_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+            input_builder: random_bytes_random_size_builder(0..2usize.pow(MAX_CALLDATA_SIZE_LOG2)),
             ..Default::default()
         }),
     );
@@ -134,7 +141,7 @@ fn fill_code(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             support_repetition: 1..1025,
             bytecode_builder: Box::new(move |params| {
                 let mut rng = params.rng();
-                let size = rng.random_range(params.repetition..14usize.pow(2)); // max 24KB
+                let size = rng.random_range(params.repetition..2usize.pow(MAX_BYTECODE_SIZE_LOG2)); // max 24KB
                 let mut head = [OpCode::CODESIZE.get()].repeat(params.repetition);
                 head.resize(size, OpCode::STOP.get());
                 Bytecode::new_legacy(Bytes::from(head))
@@ -150,7 +157,7 @@ fn fill_code(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             kind: TestCaseKind::DynamicSimple,
             support_repetition: 1..1024 / 3,
             // copy size
-            support_input_size: (0..14).map(|e| 2usize.pow(e)).collect(),
+            support_input_size: (0..MAX_BYTECODE_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
                 for _ in 1..=params.repetition {
@@ -161,7 +168,7 @@ fn fill_code(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             }),
             bytecode_builder: Box::new(move |params| {
                 let mut rng = params.rng();
-                let size = rng.random_range(params.repetition..14usize.pow(2)); // max 24KB
+                let size = rng.random_range(params.repetition..2usize.pow(MAX_BYTECODE_SIZE_LOG2)); // max 24KB
                 let mut head = [OpCode::CODECOPY.get()].repeat(params.repetition);
                 head.resize(size, OpCode::STOP.get());
                 Bytecode::new_legacy(Bytes::from(head))
@@ -178,7 +185,9 @@ fn fill_return_data(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             description: Arc::from(OpCode::RETURNDATASIZE.as_str()),
             kind: TestCaseKind::ConstantSimple,
             support_repetition: 1..1025,
-            return_data_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+            return_data_builder: random_bytes_random_size_builder(
+                0..2usize.pow(MAX_RETURNDATA_SIZE_LOG2),
+            ),
             bytecode_builder: default_bytecode_builder(OpCode::RETURNDATASIZE),
             ..Default::default()
         }),
@@ -190,7 +199,9 @@ fn fill_return_data(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             description: Arc::from(OpCode::RETURNDATACOPY.as_str()),
             kind: TestCaseKind::DynamicSimple,
             // copy size
-            support_input_size: (0..17).map(|e| 2usize.pow(e)).collect(),
+            support_input_size: (0..MAX_RETURNDATA_SIZE_LOG2)
+                .map(|e| 2usize.pow(e))
+                .collect(),
             support_repetition: 1..1024 / 3,
             memory_builder: ensure_memory_input_size_builder(),
             stack_builder: Box::new(|stack, params| {
@@ -200,7 +211,9 @@ fn fill_return_data(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     assert!(stack.push(U256::ZERO));
                 }
             }),
-            return_data_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+            return_data_builder: random_bytes_random_size_builder(
+                0..2usize.pow(MAX_RETURNDATA_SIZE_LOG2),
+            ),
             bytecode_builder: default_bytecode_builder(OpCode::RETURNDATACOPY),
             ..Default::default()
         }),
