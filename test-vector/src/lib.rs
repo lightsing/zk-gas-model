@@ -258,6 +258,19 @@ impl Display for TestCase {
 mod tests {
     use super::*;
     use rayon::prelude::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn list_unimplemented_opcodes() {
+        let all_opcodes = (0..=255)
+            .filter_map(|op| OpCode::new(op))
+            .collect::<BTreeSet<_>>();
+        let implemented_opcodes = TEST_VECTORS.keys().copied().collect::<BTreeSet<_>>();
+        let unimplemented_opcodes = all_opcodes.difference(&implemented_opcodes);
+        for opcode in unimplemented_opcodes {
+            println!("{}", opcode.as_str());
+        }
+    }
 
     #[test]
     fn assert_kinds() {
