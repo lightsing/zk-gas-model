@@ -1,7 +1,4 @@
-use crate::{
-    CALEE_ADDRESS, CALLER_ADDRESS, TestCaseBuilder, TestCaseKind, filler::random_stack_io,
-};
-use evm_guest::ContextBuilder;
+use crate::{TestCaseBuilder, TestCaseKind, filler::random_stack_io};
 use rand::Rng;
 use revm_bytecode::{Bytecode, OpCode};
 use revm_context::TransactionType;
@@ -17,7 +14,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
 
     const MAX_BLOBS: usize = 9;
     map.insert(
-        OpCode::BLOCKHASH,
+        OpCode::BLOBHASH,
         Arc::new(TestCaseBuilder {
             description: Arc::from(OpCode::BLOCKHASH.as_str()),
             kind: TestCaseKind::ConstantMixed,
@@ -33,12 +30,10 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     [OpCode::BLOCKHASH.get(), OpCode::POP.get()].repeat(params.repetition),
                 ))
             }),
-            context: {
-                let mut context = ContextBuilder::new(CALLER_ADDRESS, CALEE_ADDRESS);
-                context.tx.tx_type = TransactionType::Eip4844 as _;
-                context.tx.blob_hashes = [B256::ZERO].repeat(MAX_BLOBS);
-                Arc::new(context)
-            },
+            context_builder: Box::new(|context_builder, _params| {
+                context_builder.tx.tx_type = TransactionType::Eip4844 as _;
+                context_builder.tx.blob_hashes = [B256::ZERO].repeat(MAX_BLOBS);
+            }),
             ..Default::default()
         }),
     );

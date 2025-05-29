@@ -45,6 +45,7 @@ pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sy
 pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync>;
 pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
+pub(crate) type ContextBuilderFn = Box<dyn Fn(&mut ContextBuilder, BuilderParams) + Send + Sync>;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct BuilderParams {
@@ -83,7 +84,7 @@ pub struct TestCaseBuilder {
     bytecode_builder: BytecodeBuilder,
 
     // host builder
-    context: Arc<ContextBuilder>,
+    context_builder: ContextBuilderFn,
 
     input_builder: InputBuilder,
     target_address: Address,
@@ -100,7 +101,7 @@ pub struct TestCase {
     repetition: usize,
     input_size: usize,
     interpreter: Interpreter,
-    context: Arc<ContextBuilder>,
+    context_builder: ContextBuilder,
 }
 
 impl BuilderParams {
@@ -135,7 +136,6 @@ impl TestCaseBuilder {
                 let mut stack = Stack::new();
                 (self.stack_builder)(&mut stack, params);
                 let bytecode = (self.bytecode_builder)(params);
-                let ext_bytecode = ExtBytecode::new(bytecode);
                 let mut return_data = BytesMut::default();
                 (self.return_data_builder)(&mut return_data, params);
                 let return_data = return_data.freeze();
@@ -151,9 +151,13 @@ impl TestCaseBuilder {
                     ..Default::default()
                 };
 
+                let mut context_builder =
+                    ContextBuilder::new(self.caller_address, self.target_address, bytecode.clone());
+                (self.context_builder)(&mut context_builder, params);
+
                 let mut interpreter = Interpreter::new(
                     shared_memory,
-                    ext_bytecode,
+                    ExtBytecode::new(bytecode),
                     inputs,
                     false,
                     false,
@@ -170,7 +174,7 @@ impl TestCaseBuilder {
                     repetition,
                     input_size,
                     interpreter,
-                    context: self.context.clone(),
+                    context_builder,
                 })
             })
             .collect::<Vec<TestCase>>()
@@ -189,7 +193,7 @@ impl Default for TestCaseBuilder {
             return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
             bytecode_builder: Box::new(|_params| Bytecode::default()),
             input_builder: Box::new(|_input: &mut BytesMut, _params: BuilderParams| {}),
-            context: Arc::new(ContextBuilder::new(CALLER_ADDRESS, CALEE_ADDRESS)),
+            context_builder: Box::new(|_context_builder, _params| {}),
             target_address: CALEE_ADDRESS,
             caller_address: CALLER_ADDRESS,
             call_value: U256::ZERO,
@@ -225,15 +229,15 @@ impl TestCase {
         &self.interpreter
     }
 
-    pub fn context(&self) -> &ContextBuilder {
-        &self.context
+    pub fn context_builder(&self) -> &ContextBuilder {
+        &self.context_builder
     }
 
     pub fn count_opcodes(mut self) -> OpcodeUsage {
         INSTRUCTION_COUNTER.with(|counter| {
             let guard = counter.lock();
             guard.reset();
-            let mut context = self.context.build(self.spec_id);
+            let mut context = self.context_builder.build(self.spec_id);
             INSTRUCTION_TABLE_WITH_COUNTING.with(|table| {
                 self.interpreter.run_plain(table, &mut context);
             });

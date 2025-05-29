@@ -1739,10 +1739,12 @@ dependencies = [
 name = "evm-guest"
 version = "0.1.0"
 dependencies = [
+ "revm-bytecode",
  "revm-context",
  "revm-database",
  "revm-interpreter",
  "revm-primitives",
+ "revm-state",
  "serde",
  "sp1-zkvm",
 ]

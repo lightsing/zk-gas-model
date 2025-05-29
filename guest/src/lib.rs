@@ -1,7 +1,9 @@
+use revm_bytecode::Bytecode;
 use revm_context::{BlockEnv, CfgEnv, Journal, LocalContext, TxEnv};
-use revm_database::{Cache, CacheDB, EmptyDB};
+use revm_database::{Cache, CacheDB, DbAccount, EmptyDB};
 use revm_interpreter::interpreter::EthInterpreter;
-use revm_primitives::{Address, TxKind, hardfork::SpecId};
+use revm_primitives::{Address, TxKind, U256, hardfork::SpecId};
+use revm_state::AccountInfo;
 use serde::{Deserialize, Serialize};
 
 pub type Context = revm_context::Context<
@@ -26,7 +28,12 @@ pub struct ContextBuilder {
 }
 
 impl ContextBuilder {
-    pub fn new(caller: Address, callee: Address) -> Self {
+    pub fn new(caller: Address, callee: Address, bytecode: Bytecode) -> Self {
+        let mut db = Cache::default();
+        db.accounts
+            .insert(caller, AccountInfo::from_balance(U256::MAX).into());
+        db.accounts
+            .insert(callee, AccountInfo::from_bytecode(bytecode).into());
         Self {
             block: BlockEnv::default(),
             tx: TxEnv {
@@ -36,7 +43,7 @@ impl ContextBuilder {
                 ..Default::default()
             },
             cfg: CfgEnv::default(),
-            db: Cache::default(),
+            db,
         }
     }
 

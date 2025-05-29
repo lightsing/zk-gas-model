@@ -25,10 +25,11 @@ rand_xoshiro = "0.7"
 rayon = "1.10"
 #revm = { version = "24.0", default-features = false, features = ["serde"] }
 revm-bytecode = { version = "4.0", default-features = false, features = ["serde"] }
-revm-context = { version = "5.0", default-features = false }
-revm-database = { version = "4.0", default-features = false }
+revm-context = { version = "5.0", default-features = false, features = ["serde"] }
+revm-database = { version = "4.0", default-features = false, features = ["serde"] }
 revm-interpreter = { version = "20.0", default-features = false, features = ["serde"] }
 revm-primitives = { version = "19.1", default-features = false, features = ["serde"] }
+revm-state = { version = "4.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

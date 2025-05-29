@@ -4,8 +4,10 @@ name = "evm-guest"
 version = "0.1.0"
 
 [dependencies]
-revm-context = { workspace = true, features = ["serde"] }
-revm-database = { workspace = true, features = ["serde"] }
+revm-context.workspace = true
+revm-database.workspace = true
+revm-bytecode.workspace = true
+revm-state.workspace = true
 revm-interpreter.workspace = true
 revm-primitives.workspace = true
 serde.workspace = true

@@ -31,10 +31,7 @@ fn main() {
 
     TEST_VECTORS
         .iter()
-        .filter(|(op, tc)| {
-            !CONSTANT_OPCODE_CYCLE_LUT.contains_key(op)
-                && matches!(tc.kind(), TestCaseKind::ConstantSimple)
-        })
+        .filter(|(op, tc)| matches!(tc.kind(), TestCaseKind::ConstantSimple))
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
         .panic_fuse()
