@@ -2,7 +2,8 @@ use crate::{
     TestCaseBuilder, TestCaseKind,
     filler::{
         default_bytecode_builder, default_memory_builder, default_stack_builder,
-        ensure_memory_size_b_builder, random_bytes_size_a_builder, random_stack_io,
+        ensure_memory_size_b_builder, random_bytes_random_size_builder,
+        random_bytes_size_a_builder, random_stack_io,
     },
 };
 use rand::{Rng, RngCore};
@@ -54,154 +55,166 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
         }),
     );
 
-    [
-        OpCode::CALLDATALOAD,
-        OpCode::CALLDATASIZE,
+    fill_call(map);
+    fill_code(map);
+    fill_return_data(map);
+}
+
+fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
+    [OpCode::CALLDATALOAD, OpCode::CALLDATASIZE]
+        .into_iter()
+        .for_each(|op| {
+            map.insert(
+                op,
+                Arc::new(TestCaseBuilder {
+                    description: Arc::from(op.as_str()),
+                    kind: match op {
+                        OpCode::CALLDATALOAD => TestCaseKind::ConstantMixed,
+                        OpCode::CALLDATASIZE => TestCaseKind::ConstantSimple,
+                        _ => unreachable!(),
+                    },
+                    support_repetition: 1..1025,
+                    stack_builder: match op {
+                        OpCode::CALLDATALOAD => Box::new(|stack, params| {
+                            let mut rng = params.rng();
+                            let size = rng.random_range(0..17usize.pow(2));
+                            for _ in 1..=params.repetition {
+                                // load a word randomly from the call data
+                                let value = U256::from(rng.random_range(0..size));
+                                assert!(stack.push(value));
+                            }
+                        }),
+                        OpCode::CALLDATASIZE => default_stack_builder(),
+                        _ => unreachable!(),
+                    },
+                    bytecode_builder: match op {
+                        OpCode::CALLDATALOAD => Box::new(|params| {
+                            Bytecode::new_legacy(Bytes::from(
+                                [OpCode::CALLDATALOAD.get(), OpCode::POP.get()]
+                                    .repeat(params.repetition),
+                            ))
+                        }),
+                        OpCode::CALLDATASIZE => default_bytecode_builder(op),
+                        _ => unreachable!(),
+                    },
+                    input_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+                    ..Default::default()
+                }),
+            );
+        });
+
+    map.insert(
         OpCode::CALLDATACOPY,
-    ]
-    .into_iter()
-    .for_each(|op| {
-        map.insert(
-            op,
-            Arc::new(TestCaseBuilder {
-                description: Arc::from(op.as_str()),
-                kind: match op {
-                    OpCode::CALLDATALOAD => TestCaseKind::DynamicMixed,
-                    _ => TestCaseKind::DynamicSimple,
-                },
-                support_repetition: match op {
-                    OpCode::CALLDATACOPY => 1..1024 / 3,
-                    _ => 1..1025,
-                },
-                // call data size
-                support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(), // max 128KB
-                // copy size
-                support_input_size_b: match op {
-                    OpCode::CALLDATACOPY => (0..17).map(|e| 2usize.pow(e)).collect::<Vec<_>>(),
-                    _ => vec![1],
-                },
-                params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
-                memory_builder: match op {
-                    OpCode::CALLDATACOPY => ensure_memory_size_b_builder(),
-                    _ => default_memory_builder(),
-                },
-                stack_builder: match op {
-                    OpCode::CALLDATALOAD => Box::new(|stack, params| {
-                        let mut rng = params.rng();
-                        for _ in 1..=params.repetition {
-                            // load a word randomly from the call data
-                            let value = U256::from(rng.random_range(0..params.input_size_a));
-                            assert!(stack.push(value));
-                        }
-                    }),
-                    OpCode::CALLDATACOPY => Box::new(|stack, params| {
-                        for _ in 1..=params.repetition {
-                            assert!(stack.push(U256::from(params.input_size_b)));
-                            assert!(stack.push(U256::ZERO));
-                            assert!(stack.push(U256::ZERO));
-                        }
-                    }),
-                    _ => default_stack_builder(),
-                },
-                bytecode_builder: Box::new(move |params| {
-                    Bytecode::new_legacy(Bytes::from(match op {
-                        OpCode::CALLDATALOAD => [OpCode::CALLDATASIZE.get(), OpCode::POP.get()]
-                            .repeat(params.repetition),
-                        _ => [op.get()].repeat(params.repetition),
-                    }))
-                }),
-                input_builder: random_bytes_size_a_builder(),
-                ..Default::default()
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::CALLDATACOPY.as_str()),
+            kind: TestCaseKind::DynamicSimple,
+            support_repetition: 1..1024 / 3,
+            // call data size
+            support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(), // max 128KB
+            // copy size
+            support_input_size_b: (0..17).map(|e| 2usize.pow(e)).collect(),
+            params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
+            memory_builder: ensure_memory_size_b_builder(),
+            stack_builder: Box::new(|stack, params| {
+                for _ in 1..=params.repetition {
+                    assert!(stack.push(U256::from(params.input_size_b)));
+                    assert!(stack.push(U256::ZERO));
+                    assert!(stack.push(U256::ZERO));
+                }
             }),
-        );
-    });
+            bytecode_builder: default_bytecode_builder(OpCode::CALLDATACOPY),
+            input_builder: random_bytes_size_a_builder(),
+            ..Default::default()
+        }),
+    );
+}
 
-    [OpCode::CODESIZE, OpCode::CODECOPY]
-        .into_iter()
-        .for_each(|op| {
-            map.insert(
-                op,
-                Arc::new(TestCaseBuilder {
-                    description: Arc::from(op.as_str()),
-                    kind: TestCaseKind::DynamicSimple,
-                    support_repetition: match op {
-                        OpCode::CODECOPY => 1..1024 / 3,
-                        _ => 1..1025,
-                    },
-                    // code size
-                    support_input_size_a: (0..14).map(|e| 2usize.pow(e)).collect(), // max 24KB
-                    // copy size
-                    support_input_size_b: match op {
-                        OpCode::CODECOPY => (0..14).map(|e| 2usize.pow(e)).collect(),
-                        _ => vec![1],
-                    },
-                    params_filter: Box::new(|params| {
-                        params.input_size_a >= params.repetition
-                            && params.input_size_b <= params.input_size_a
-                    }),
-                    memory_builder: match op {
-                        OpCode::CODECOPY => ensure_memory_size_b_builder(),
-                        _ => default_memory_builder(),
-                    },
-                    stack_builder: match op {
-                        OpCode::CODECOPY => Box::new(|stack, params| {
-                            for _ in 1..=params.repetition {
-                                assert!(stack.push(U256::from(params.input_size_b)));
-                                assert!(stack.push(U256::ZERO));
-                                assert!(stack.push(U256::ZERO));
-                            }
-                        }),
-                        _ => default_stack_builder(),
-                    },
-                    bytecode_builder: Box::new(move |params| {
-                        let mut head = [op.get()].repeat(params.repetition);
-                        assert!(params.input_size_a >= params.repetition);
-                        head.resize(params.input_size_a, OpCode::STOP.get());
-                        Bytecode::new_legacy(Bytes::from(head))
-                    }),
-                    ..Default::default()
-                }),
-            );
-        });
+fn fill_code(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
+    map.insert(
+        OpCode::CODESIZE,
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::CODESIZE.as_str()),
+            kind: TestCaseKind::ConstantSimple,
+            support_repetition: 1..1025,
+            bytecode_builder: Box::new(move |params| {
+                let mut rng = params.rng();
+                let size = rng.random_range(params.repetition..14usize.pow(2)); // max 24KB
+                let mut head = [OpCode::CODESIZE.get()].repeat(params.repetition);
+                head.resize(size, OpCode::STOP.get());
+                Bytecode::new_legacy(Bytes::from(head))
+            }),
+            ..Default::default()
+        }),
+    );
 
-    [OpCode::RETURNDATASIZE, OpCode::RETURNDATACOPY]
-        .into_iter()
-        .for_each(|op| {
-            map.insert(
-                op,
-                Arc::new(TestCaseBuilder {
-                    description: Arc::from(op.as_str()),
-                    kind: TestCaseKind::DynamicSimple,
-                    // return data size
-                    support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(),
-                    // copy size
-                    support_input_size_b: match op {
-                        OpCode::RETURNDATACOPY => (0..17).map(|e| 2usize.pow(e)).collect(),
-                        _ => vec![1],
-                    },
-                    params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
-                    support_repetition: match op {
-                        OpCode::RETURNDATACOPY => 1..1024 / 3,
-                        _ => 1..1025,
-                    },
-                    memory_builder: match op {
-                        OpCode::RETURNDATACOPY => ensure_memory_size_b_builder(),
-                        _ => default_memory_builder(),
-                    },
-                    stack_builder: match op {
-                        OpCode::RETURNDATACOPY => Box::new(|stack, params| {
-                            for _ in 1..=params.repetition {
-                                assert!(stack.push(U256::from(params.input_size_b)));
-                                assert!(stack.push(U256::ZERO));
-                                assert!(stack.push(U256::ZERO));
-                            }
-                        }),
-                        _ => default_stack_builder(),
-                    },
-                    return_data_builder: random_bytes_size_a_builder(),
-                    bytecode_builder: default_bytecode_builder(op),
-                    ..Default::default()
-                }),
-            );
-        });
+    map.insert(
+        OpCode::CODECOPY,
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::CODECOPY.as_str()),
+            kind: TestCaseKind::DynamicSimple,
+            support_repetition: 1..1024 / 3,
+            // code size
+            support_input_size_a: (0..14).map(|e| 2usize.pow(e)).collect(), // max 24KB
+            // copy size
+            support_input_size_b: (0..14).map(|e| 2usize.pow(e)).collect(),
+            params_filter: Box::new(|params| {
+                params.input_size_a >= params.repetition
+                    && params.input_size_b <= params.input_size_a
+            }),
+            memory_builder: ensure_memory_size_b_builder(),
+            stack_builder: Box::new(|stack, params| {
+                for _ in 1..=params.repetition {
+                    assert!(stack.push(U256::from(params.input_size_b)));
+                    assert!(stack.push(U256::ZERO));
+                    assert!(stack.push(U256::ZERO));
+                }
+            }),
+            bytecode_builder: Box::new(move |params| {
+                let mut head = [OpCode::CODECOPY.get()].repeat(params.repetition);
+                assert!(params.input_size_a >= params.repetition);
+                head.resize(params.input_size_a, OpCode::STOP.get());
+                Bytecode::new_legacy(Bytes::from(head))
+            }),
+            ..Default::default()
+        }),
+    );
+}
+
+fn fill_return_data(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
+    map.insert(
+        OpCode::RETURNDATASIZE,
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::RETURNDATASIZE.as_str()),
+            kind: TestCaseKind::ConstantSimple,
+            support_repetition: 1..1025,
+            return_data_builder: random_bytes_random_size_builder(0..17usize.pow(2)),
+            bytecode_builder: default_bytecode_builder(OpCode::RETURNDATASIZE),
+            ..Default::default()
+        }),
+    );
+
+    map.insert(
+        OpCode::RETURNDATACOPY,
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::RETURNDATACOPY.as_str()),
+            kind: TestCaseKind::DynamicSimple,
+            // return data size
+            support_input_size_a: (0..17).map(|e| 2usize.pow(e)).collect(),
+            // copy size
+            support_input_size_b: (0..17).map(|e| 2usize.pow(e)).collect(),
+            params_filter: Box::new(|params| params.input_size_b <= params.input_size_a),
+            support_repetition: 1..1024 / 3,
+            memory_builder: ensure_memory_size_b_builder(),
+            stack_builder: Box::new(|stack, params| {
+                for _ in 1..=params.repetition {
+                    assert!(stack.push(U256::from(params.input_size_b)));
+                    assert!(stack.push(U256::ZERO));
+                    assert!(stack.push(U256::ZERO));
+                }
+            }),
+            return_data_builder: random_bytes_size_a_builder(),
+            bytecode_builder: default_bytecode_builder(OpCode::RETURNDATACOPY),
+            ..Default::default()
+        }),
+    );
 }
