@@ -16,7 +16,7 @@ const MAX_BYTECODE_SIZE_LOG2: u32 = 14;
 const MAX_RETURNDATA_SIZE_LOG2: u32 = 17;
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
-    [OpCode::ADDRESS, OpCode::CALLER, OpCode::CALLVALUE]
+    [OpCode::ADDRESS, OpCode::CALLER, OpCode::CALLVALUE, OpCode::GAS]
         .into_iter()
         .for_each(|op| {
             map.insert(op, random_stack_io(op));
