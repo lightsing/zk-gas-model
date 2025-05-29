@@ -36,7 +36,9 @@ pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResu
     let input_size = tc.input_size();
 
     let mut stdin = SP1Stdin::new();
+    stdin.write(&tc.spec_id());
     stdin.write(&tc.interpreter());
+    stdin.write(&tc.context());
 
     let (_, baseline_report) = client.execute(GUEST_BASELINE_ELF, &stdin).run().unwrap();
     let (mut output, exec_report) = client.execute(GUEST_EXEC_ELF, &stdin).run().unwrap();

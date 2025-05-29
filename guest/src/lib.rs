@@ -1,12 +1,53 @@
+use revm_context::{BlockEnv, CfgEnv, Journal, LocalContext, TxEnv};
+use revm_database::{Cache, CacheDB, EmptyDB};
 use revm_interpreter::interpreter::EthInterpreter;
+use revm_primitives::{Address, TxKind, hardfork::SpecId};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 
-pub use revm_interpreter::host::DummyHost as Host;
+pub type Context = revm_context::Context<
+    BlockEnv,
+    TxEnv,
+    CfgEnv,
+    CacheDB<EmptyDB>,
+    Journal<CacheDB<EmptyDB>>,
+    (),
+    LocalContext,
+>;
 pub type Interpreter = revm_interpreter::Interpreter<EthInterpreter>;
-pub type Instruction = for<'a> fn(&'a mut Interpreter, &'a mut Host);
+pub type Instruction = for<'a> fn(&'a mut Interpreter, &'a mut Context);
 pub type InstructionTable = [Instruction; 256];
 
-#[serde_as]
-#[derive(Serialize, Deserialize)]
-pub struct InstructionCounter(#[serde_as(as = "[_; 256]")] pub [usize; 256]);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextBuilder {
+    pub block: BlockEnv,
+    pub tx: TxEnv,
+    pub cfg: CfgEnv,
+    pub db: Cache,
+}
+
+impl ContextBuilder {
+    pub fn new(caller: Address, callee: Address) -> Self {
+        Self {
+            block: BlockEnv::default(),
+            tx: TxEnv {
+                caller,
+                gas_limit: u64::MAX,
+                kind: TxKind::Call(callee),
+                ..Default::default()
+            },
+            cfg: CfgEnv::default(),
+            db: Cache::default(),
+        }
+    }
+
+    pub fn build(&self, spec_id: SpecId) -> Context {
+        let cache_db = CacheDB {
+            cache: self.db.clone(),
+            db: EmptyDB::new(),
+        };
+        Context::new(cache_db, spec_id)
+            .with_block(self.block.clone())
+            .with_tx(self.tx.clone())
+            .with_cfg(self.cfg.clone())
+    }
+}

@@ -1,4 +1,4 @@
-use evm_guest::{Host, InstructionTable};
+use evm_guest::{Context, InstructionTable};
 use revm_bytecode::OpCode;
 use std::{collections::BTreeMap, sync::Mutex};
 
@@ -83,7 +83,7 @@ const fn instruction_table() -> InstructionTable {
     macro_rules! wrap {
         ($op:expr, $inst:expr) => {
             table[$op as usize] = |interpreter: &mut evm_guest::Interpreter,
-                                   host: &mut evm_guest::Host| {
+                                   host: &mut evm_guest::Context| {
                 INSTRUCTION_COUNTER.with(|c| c.count($op));
                 $inst(interpreter, host)
             }
@@ -245,13 +245,13 @@ const fn instruction_table() -> InstructionTable {
     wrap!(EXCHANGE, stack::exchange);
     wrap!(EOFCREATE, contract::eofcreate);
     wrap!(TXCREATE, contract::txcreate);
-    wrap!(RETURNCONTRACT, contract::return_contract::<Host>);
-    wrap!(CREATE, contract::create::<EthInterpreter, false, Host>);
+    wrap!(RETURNCONTRACT, contract::return_contract::<Context>);
+    wrap!(CREATE, contract::create::<EthInterpreter, false, Context>);
     wrap!(CALL, contract::call);
     wrap!(CALLCODE, contract::call_code);
     wrap!(RETURN, control::ret);
     wrap!(DELEGATECALL, contract::delegate_call);
-    wrap!(CREATE2, contract::create::<EthInterpreter, true, Host>);
+    wrap!(CREATE2, contract::create::<EthInterpreter, true, Context>);
     wrap!(RETURNDATALOAD, system::returndataload);
     wrap!(EXTCALL, contract::extcall);
     wrap!(EXTDELEGATECALL, contract::extdelegatecall);

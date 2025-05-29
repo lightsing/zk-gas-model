@@ -1,5 +1,5 @@
 use crate::counting::{INSTRUCTION_COUNTER, INSTRUCTION_TABLE_WITH_COUNTING};
-use evm_guest::{Host, Interpreter};
+use evm_guest::{ContextBuilder, Interpreter};
 use itertools::Itertools;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro256Plus;
@@ -36,6 +36,9 @@ pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = Lazy
 
     map
 });
+
+pub const CALLER_ADDRESS: Address = address!("0xcafecafecafecafecafecafecafecafecafecafe");
+pub const CALEE_ADDRESS: Address = address!("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
 
 pub(crate) type MemoryBuilder = Box<dyn Fn(&mut SharedMemory, BuilderParams) + Send + Sync>;
 pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sync>;
@@ -79,6 +82,9 @@ pub struct TestCaseBuilder {
     return_data_builder: ReturnDataBuilder,
     bytecode_builder: BytecodeBuilder,
 
+    // host builder
+    context: Arc<ContextBuilder>,
+
     input_builder: InputBuilder,
     target_address: Address,
     caller_address: Address,
@@ -90,9 +96,11 @@ pub struct TestCaseBuilder {
 pub struct TestCase {
     description: Arc<str>,
     kind: TestCaseKind,
+    spec_id: SpecId,
     repetition: usize,
     input_size: usize,
     interpreter: Interpreter,
+    context: Arc<ContextBuilder>,
 }
 
 impl BuilderParams {
@@ -158,9 +166,11 @@ impl TestCaseBuilder {
                 Some(TestCase {
                     description: self.description.clone(),
                     kind: self.kind,
+                    spec_id: self.spec_id,
                     repetition,
                     input_size,
                     interpreter,
+                    context: self.context.clone(),
                 })
             })
             .collect::<Vec<TestCase>>()
@@ -179,8 +189,9 @@ impl Default for TestCaseBuilder {
             return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
             bytecode_builder: Box::new(|_params| Bytecode::default()),
             input_builder: Box::new(|_input: &mut BytesMut, _params: BuilderParams| {}),
-            target_address: address!("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
-            caller_address: address!("0xcafecafecafecafecafecafecafecafecafecafe"),
+            context: Arc::new(ContextBuilder::new(CALLER_ADDRESS, CALEE_ADDRESS)),
+            target_address: CALEE_ADDRESS,
+            caller_address: CALLER_ADDRESS,
             call_value: U256::ZERO,
             spec_id: SpecId::OSAKA,
         }
@@ -194,6 +205,10 @@ impl TestCase {
 
     pub fn kind(&self) -> TestCaseKind {
         self.kind
+    }
+
+    pub fn spec_id(&self) -> SpecId {
+        self.spec_id
     }
 
     /// the repetition of the target measurement
@@ -210,12 +225,17 @@ impl TestCase {
         &self.interpreter
     }
 
+    pub fn context(&self) -> &ContextBuilder {
+        &self.context
+    }
+
     pub fn count_opcodes(mut self) -> OpcodeUsage {
         INSTRUCTION_COUNTER.with(|counter| {
             let guard = counter.lock();
             guard.reset();
+            let mut context = self.context.build(self.spec_id);
             INSTRUCTION_TABLE_WITH_COUNTING.with(|table| {
-                self.interpreter.run_plain(table, &mut Host);
+                self.interpreter.run_plain(table, &mut context);
             });
             let usage = guard.read();
             guard.reset();

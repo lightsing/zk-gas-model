@@ -23,17 +23,18 @@ itertools = "0.14"
 rand = "0.9"
 rand_xoshiro = "0.7"
 rayon = "1.10"
-revm = { version = "23.1", default-features = false, features = ["serde"] }
+#revm = { version = "24.0", default-features = false, features = ["serde"] }
 revm-bytecode = { version = "4.0", default-features = false, features = ["serde"] }
-revm-interpreter = { version = "19", default-features = false, features = ["serde"] }
-revm-primitives = { version = "19", default-features = false, features = ["serde"] }
+revm-context = { version = "5.0", default-features = false }
+revm-database = { version = "4.0", default-features = false }
+revm-interpreter = { version = "20.0", default-features = false, features = ["serde"] }
+revm-primitives = { version = "19.1", default-features = false, features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_with = "3.12"
 
 [profile.test]
-opt-level = 3
 lto = true
+opt-level = 3
 
 [profile.release]
 lto = true
