@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
 mod arithmetic;
 mod bitwise;
+mod memory;
 mod stack;
 mod system;
 
@@ -14,6 +15,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     bitwise::fill(map);
     system::fill(map);
     stack::fill(map);
+    memory::fill(map);
 }
 
 fn random_stack_io(opcode: OpCode) -> Arc<TestCaseBuilder> {
