@@ -21,8 +21,8 @@ pub use counting::OpcodeUsage;
 
 mod filler;
 
-pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, f64>> = LazyLock::new(|| {
-    serde_json::from_str::<BTreeMap<String, f64>>(include_str!("lut.json"))
+pub static CONSTANT_OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, f64>> = LazyLock::new(|| {
+    serde_json::from_str::<BTreeMap<String, f64>>(include_str!("constant-opcode-lut.json"))
         .expect("Failed to parse opcode cycle LUT")
         .into_iter()
         .map(|(k, v)| (k.parse().unwrap(), v))

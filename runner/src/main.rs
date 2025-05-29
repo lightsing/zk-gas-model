@@ -3,15 +3,14 @@ use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
-use revm_bytecode::OpCode;
-use revm_interpreter::InterpreterResult;
-use serde::Serialize;
-use sp1_sdk::{CpuProver, SP1Stdin};
+use sp1_sdk::CpuProver;
 use std::sync::Mutex;
-use test_vector::{OPCODE_CYCLE_LUT, TEST_VECTORS, TestCase, TestCaseKind};
+use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, TEST_VECTORS, TestCaseKind};
 
 const GUEST_BASELINE_ELF: &[u8] = include_bytes!("../elf/baseline/evm-guest");
 const GUEST_EXEC_ELF: &[u8] = include_bytes!("../elf/exec/evm-guest");
+
+mod runner;
 
 fn main() {
     sp1_sdk::utils::setup_logger();
@@ -24,14 +23,17 @@ fn main() {
     )
     .unwrap();
     let writer = Mutex::new(csv::Writer::from_path("results.csv").unwrap());
+
     let seeds = Xoshiro256Plus::seed_from_u64(42)
         .random_iter()
         .take(100)
         .collect::<Vec<u64>>();
+
     TEST_VECTORS
         .iter()
         .filter(|(op, tc)| {
-            !OPCODE_CYCLE_LUT.contains_key(op) && matches!(tc.kind(), TestCaseKind::ConstantSimple)
+            !CONSTANT_OPCODE_CYCLE_LUT.contains_key(op)
+                && matches!(tc.kind(), TestCaseKind::ConstantSimple)
         })
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
@@ -44,58 +46,9 @@ fn main() {
             pb.set_style(style.clone());
 
             for tc in tcs.into_iter().progress_with(pb) {
-                let result = run_test(&client, *op, tc);
+                let result = runner::run_test(&client, *op, tc);
+                let result = result.to_constant_simple_case_result();
                 writer.lock().unwrap().serialize(result).unwrap();
             }
         });
-}
-
-#[derive(Serialize)]
-struct TestCaseResult {
-    opcode: &'static str,
-    repetition: usize,
-    input_size_a: usize,
-    input_size_b: usize,
-    baseline_instruction_count: u64,
-    exec_instruction_count: u64,
-    evm_gas: u64,
-    sp1_gas: u64,
-}
-
-fn run_test(client: &CpuProver, op: OpCode, tc: TestCase) -> TestCaseResult {
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&tc.interpreter());
-
-    let repetition = tc.repetition();
-
-    let (_, report) = client.execute(GUEST_BASELINE_ELF, &stdin).run().unwrap();
-    let baseline_instruction_count = report.total_instruction_count();
-    let (mut output, report) = client.execute(GUEST_EXEC_ELF, &stdin).run().unwrap();
-    let exec_instruction_count = report.total_instruction_count();
-    let result: InterpreterResult = output.read();
-    let evm_gas = result.gas.spent();
-    let sp1_gas = report.gas.unwrap();
-
-    let input_size_a = tc.input_size_a();
-    let input_size_b = tc.input_size_b();
-    let opcodes_usage = tc.count_opcodes();
-    assert_eq!(
-        opcodes_usage.get(op),
-        Some(repetition),
-        "Opcode usage mismatch for {}: expected {}, got {}",
-        op,
-        repetition,
-        opcodes_usage.get(op).unwrap_or(0)
-    );
-
-    TestCaseResult {
-        opcode: op.as_str(),
-        repetition,
-        input_size_a,
-        input_size_b,
-        baseline_instruction_count,
-        exec_instruction_count,
-        evm_gas,
-        sp1_gas,
-    }
 }
