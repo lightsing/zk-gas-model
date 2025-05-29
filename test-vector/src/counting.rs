@@ -261,23 +261,5 @@ const fn instruction_table() -> InstructionTable {
     wrap!(INVALID, control::invalid);
     wrap!(SELFDESTRUCT, host::selfdestruct);
 
-    // EOF related
-    // wrap!(DATALOAD, data::data_load);
-    // wrap!(DATALOADN, data::data_loadn);
-    // wrap!(DATASIZE, data::data_size);
-    // wrap!(DATACOPY, data::data_copy);
-    // wrap!(RJUMP, control::rjump);
-    // wrap!(RJUMPI, control::rjumpi);
-    // wrap!(RJUMPV, control::rjumpv);
-    // wrap!(CALLF, control::callf);
-    // wrap!(RETF, control::retf);
-    // wrap!(JUMPF, control::jumpf);
-    // wrap!(DUPN, stack::dupn);
-    // wrap!(SWAPN, stack::swapn);
-    // wrap!(EXCHANGE, stack::exchange);
-    // wrap!(EOFCREATE, contract::eofcreate);
-    // wrap!(TXCREATE, contract::txcreate);
-    // wrap!(RETURNCONTRACT, contract::return_contract::<Host>);
-
     table
 }
