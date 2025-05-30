@@ -4,7 +4,6 @@ use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
-use sp1_sdk::CpuProver;
 use std::{
     path::PathBuf,
     sync::{LazyLock, Mutex},
