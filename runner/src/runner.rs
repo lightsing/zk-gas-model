@@ -1,7 +1,7 @@
 use crate::GUEST_ELF;
 use itertools::Itertools;
 use revm_bytecode::{Bytecode, OpCode};
-use revm_interpreter::{InterpreterResult, interpreter::ExtBytecode};
+use revm_interpreter::interpreter::ExtBytecode;
 use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use std::{mem, sync::LazyLock};
