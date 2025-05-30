@@ -25,10 +25,7 @@ pub struct ConstantSimpleCaseResult {
     opcode: &'static str,
     repetition: usize,
     baseline_instruction_count: u64,
-    baseline_sp1_gas: u64,
     exec_instruction_count: u64,
-    exec_sp1_gas: u64,
-    evm_gas: u64,
 }
 
 #[derive(Serialize)]
@@ -36,11 +33,8 @@ pub struct ConstantMixedCaseResult {
     opcode: &'static str,
     repetition: usize,
     baseline_instruction_count: u64,
-    baseline_sp1_gas: u64,
     exec_instruction_count: u64,
-    exec_sp1_gas: u64,
     instruction_count_consumes_by_other_estimated: f64,
-    evm_gas: u64,
 }
 
 #[derive(Serialize)]
@@ -49,10 +43,7 @@ pub struct DynamicSimpleCaseResult {
     repetition: usize,
     input_size: usize,
     baseline_instruction_count: u64,
-    baseline_sp1_gas: u64,
     exec_instruction_count: u64,
-    exec_sp1_gas: u64,
-    evm_gas: u64,
 }
 
 pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResult {
@@ -95,10 +86,7 @@ impl TestRunResult {
             opcode: self.opcode.as_str(),
             repetition: self.repetition,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
-            baseline_sp1_gas: self.baseline_report.gas.unwrap(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
-            exec_sp1_gas: self.exec_report.gas.unwrap(),
-            evm_gas: self.interpreter_result.gas.spent(),
         }
     }
 
@@ -136,11 +124,8 @@ impl TestRunResult {
             opcode: self.opcode.as_str(),
             repetition: self.repetition,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
-            baseline_sp1_gas: self.baseline_report.gas.unwrap(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
-            exec_sp1_gas: self.exec_report.gas.unwrap(),
             instruction_count_consumes_by_other_estimated,
-            evm_gas: self.interpreter_result.gas.spent(),
         }
     }
 
@@ -154,10 +139,7 @@ impl TestRunResult {
             repetition: self.repetition,
             input_size: self.input_size,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
-            baseline_sp1_gas: self.baseline_report.gas.unwrap(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
-            exec_sp1_gas: self.exec_report.gas.unwrap(),
-            evm_gas: self.interpreter_result.gas.spent(),
         }
     }
 
