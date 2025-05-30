@@ -4151,8 +4151,8 @@ checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 name = "runner"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "csv",
- "evm-guest",
  "indicatif",
  "itertools 0.14.0",
  "rand 0.9.1",
@@ -4160,7 +4160,6 @@ dependencies = [
  "rayon",
  "revm-bytecode",
  "revm-interpreter",
- "revm-primitives",
  "serde",
  "sp1-build",
  "sp1-sdk",
@@ -5303,6 +5302,7 @@ dependencies = [
 name = "test-vector"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "evm-guest",
  "itertools 0.14.0",
  "rand 0.9.1",
@@ -5310,7 +5310,6 @@ dependencies = [
  "rayon",
  "revm-bytecode",
  "revm-context",
- "revm-database",
  "revm-interpreter",
  "revm-primitives",
  "serde_json",

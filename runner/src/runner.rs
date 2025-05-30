@@ -1,9 +1,10 @@
 use crate::{GUEST_BASELINE_ELF, GUEST_EXEC_ELF};
+use itertools::Itertools;
 use revm_bytecode::OpCode;
 use revm_interpreter::InterpreterResult;
 use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
-use test_vector::{OpcodeUsage, TestCase, TestCaseKind};
+use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
 
 pub struct TestRunResult {
     opcode: OpCode,
@@ -27,6 +28,18 @@ pub struct ConstantSimpleCaseResult {
     baseline_sp1_gas: u64,
     exec_instruction_count: u64,
     exec_sp1_gas: u64,
+    evm_gas: u64,
+}
+
+#[derive(Serialize)]
+pub struct ConstantMixedCaseResult {
+    opcode: &'static str,
+    repetition: usize,
+    baseline_instruction_count: u64,
+    baseline_sp1_gas: u64,
+    exec_instruction_count: u64,
+    exec_sp1_gas: u64,
+    instruction_count_consumes_by_other_estimated: f64,
     evm_gas: u64,
 }
 
@@ -63,17 +76,7 @@ pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResu
 impl TestRunResult {
     pub fn to_constant_simple_case_result(&self) -> ConstantSimpleCaseResult {
         assert!(matches!(self.kind, TestCaseKind::ConstantSimple));
-        assert_eq!(
-            self.opcodes_usage.get(OpCode::STOP),
-            Some(1),
-            "STOP should be used exactly once in a case",
-        );
-        assert_eq!(
-            self.opcodes_usage.get(self.opcode).unwrap_or_default(),
-            self.repetition,
-            "Opcode usage mismatch for {}",
-            self.opcode,
-        );
+        self.sanity_check();
         assert!(
             self.opcodes_usage
                 .iter()
@@ -93,5 +96,61 @@ impl TestRunResult {
             exec_sp1_gas: self.exec_report.gas.unwrap(),
             evm_gas: self.interpreter_result.gas.spent(),
         }
+    }
+
+    pub fn to_constant_mixed_case_result(&self) -> ConstantMixedCaseResult {
+        assert!(matches!(self.kind, TestCaseKind::ConstantMixed));
+        self.sanity_check();
+        assert!(
+            self.opcodes_usage
+                .iter()
+                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
+                .all(|(op, _)| CONSTANT_OPCODE_CYCLE_LUT.contains_key(&op)),
+            "found opcode not in constant lut: {:?}",
+            self.opcodes_usage
+                .iter()
+                .filter(|(op, _)| {
+                    *op != self.opcode
+                        && *op != OpCode::STOP
+                        && !CONSTANT_OPCODE_CYCLE_LUT.contains_key(&op)
+                })
+                .collect_vec()
+        );
+
+        let instruction_count_consumes_by_other_estimated = self
+            .opcodes_usage
+            .iter()
+            .filter_map(|(op, repetition)| {
+                CONSTANT_OPCODE_CYCLE_LUT
+                    .get(&op)
+                    .copied()
+                    .map(|cycle| cycle * repetition as f64)
+            })
+            .sum::<f64>();
+
+        ConstantMixedCaseResult {
+            opcode: self.opcode.as_str(),
+            repetition: self.repetition,
+            baseline_instruction_count: self.baseline_report.total_instruction_count(),
+            baseline_sp1_gas: self.baseline_report.gas.unwrap(),
+            exec_instruction_count: self.exec_report.total_instruction_count(),
+            exec_sp1_gas: self.exec_report.gas.unwrap(),
+            instruction_count_consumes_by_other_estimated,
+            evm_gas: self.interpreter_result.gas.spent(),
+        }
+    }
+
+    fn sanity_check(&self) {
+        assert_eq!(
+            self.opcodes_usage.get(OpCode::STOP),
+            Some(1),
+            "STOP should be used exactly once in a case",
+        );
+        assert_eq!(
+            self.opcodes_usage.get(self.opcode).unwrap_or_default(),
+            self.repetition,
+            "Opcode usage mismatch for {}",
+            self.opcode,
+        );
     }
 }

@@ -4,12 +4,12 @@ name = "evm-guest"
 version = "0.1.0"
 
 [dependencies]
+revm-bytecode.workspace = true
 revm-context.workspace = true
 revm-database.workspace = true
-revm-bytecode.workspace = true
-revm-state.workspace = true
 revm-interpreter.workspace = true
 revm-primitives.workspace = true
+revm-state.workspace = true
 serde.workspace = true
 
 sp1-zkvm = { workspace = true, optional = true }

@@ -17,13 +17,13 @@ sp1-build = "4.2"
 sp1-sdk = "4.2"
 sp1-zkvm = "4.2"
 
+clap = { version = "4.5", features = ["derive"] }
 csv = "1.3"
 indicatif = "0.17"
 itertools = "0.14"
 rand = "0.9"
 rand_xoshiro = "0.7"
 rayon = "1.10"
-#revm = { version = "24.0", default-features = false, features = ["serde"] }
 revm-bytecode = { version = "4.0", default-features = false, features = ["serde"] }
 revm-context = { version = "5.0", default-features = false, features = ["serde"] }
 revm-database = { version = "4.0", default-features = false, features = ["serde"] }

@@ -5,8 +5,8 @@ name = "runner"
 version.workspace = true
 
 [dependencies]
+clap.workspace = true
 csv.workspace = true
-evm-guest = { path = "../guest", default-features = false }
 indicatif.workspace = true
 itertools.workspace = true
 rand.workspace = true
@@ -14,7 +14,6 @@ rand_xoshiro.workspace = true
 rayon.workspace = true
 revm-bytecode.workspace = true
 revm-interpreter.workspace = true
-revm-primitives.workspace = true
 serde.workspace = true
 sp1-sdk.workspace = true
 test-vector = { path = "../test-vector" }

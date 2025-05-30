@@ -5,13 +5,13 @@ name = "test-vector"
 version.workspace = true
 
 [dependencies]
+clap.workspace = true
 evm-guest = { path = "../guest", default-features = false }
 itertools.workspace = true
 rand.workspace = true
 rand_xoshiro.workspace = true
 revm-bytecode = { workspace = true, features = ["parse"] }
 revm-context.workspace = true
-revm-database.workspace = true
 revm-interpreter.workspace = true
 revm-primitives = { workspace = true, features = ["rand"] }
 serde_json.workspace = true

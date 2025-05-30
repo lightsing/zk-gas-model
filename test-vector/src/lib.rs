@@ -1,4 +1,5 @@
 use crate::counting::{INSTRUCTION_COUNTER, INSTRUCTION_TABLE_WITH_COUNTING};
+use clap::ValueEnum;
 use evm_guest::{ContextBuilder, Interpreter};
 use itertools::Itertools;
 use rand::SeedableRng;
@@ -54,7 +55,7 @@ pub(crate) struct BuilderParams {
     pub(crate) random_seed: Option<u64>,
 }
 
-#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum TestCaseKind {
     /// The case only measures desired opcodes and has fixed input sizes.
     #[default]
