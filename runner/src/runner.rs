@@ -6,6 +6,10 @@ use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
 
+thread_local! {
+    static CLIENT: CpuProver = CpuProver::new();
+}
+
 pub struct TestRunResult {
     opcode: OpCode,
 
@@ -15,6 +19,7 @@ pub struct TestRunResult {
 
     baseline_report: ExecutionReport,
     exec_report: ExecutionReport,
+    #[allow(unused)]
     interpreter_result: InterpreterResult,
 
     opcodes_usage: OpcodeUsage,
@@ -46,7 +51,7 @@ pub struct DynamicSimpleCaseResult {
     exec_instruction_count: u64,
 }
 
-pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResult {
+pub fn run_test(opcode: OpCode, tc: TestCase) -> TestRunResult {
     let kind = tc.kind();
     let repetition = tc.repetition();
     let input_size = tc.input_size();
@@ -56,8 +61,12 @@ pub fn run_test(client: &CpuProver, opcode: OpCode, tc: TestCase) -> TestRunResu
     stdin.write(&tc.interpreter());
     stdin.write(&tc.context_builder());
 
-    let (_, baseline_report) = client.execute(GUEST_BASELINE_ELF, &stdin).run().unwrap();
-    let (mut output, exec_report) = client.execute(GUEST_EXEC_ELF, &stdin).run().unwrap();
+    let (_, baseline_report) = CLIENT
+        .with(|client| client.execute(GUEST_BASELINE_ELF, &stdin).run())
+        .unwrap();
+    let (mut output, exec_report) = CLIENT
+        .with(|client| client.execute(GUEST_EXEC_ELF, &stdin).run())
+        .unwrap();
     let interpreter_result: InterpreterResult = output.read();
 
     let opcodes_usage = tc.count_opcodes();

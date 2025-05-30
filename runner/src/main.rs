@@ -50,7 +50,6 @@ fn main() {
         .take(repeat)
         .collect::<Vec<u64>>();
 
-    let client = CpuProver::new();
     let m = MultiProgress::new();
     TEST_VECTORS
         .iter()
@@ -69,7 +68,7 @@ fn main() {
             );
 
             for tc in tcs.into_iter().progress_with(pb) {
-                let result = runner::run_test(&client, *op, tc);
+                let result = runner::run_test(*op, tc);
                 let mut writer = writer.lock().unwrap();
                 match kind {
                     TestCaseKind::ConstantSimple => {
