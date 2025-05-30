@@ -61,7 +61,7 @@ fn main() {
             let pb = m.add(
                 ProgressBar::new(tcs.len() as u64)
                     .with_prefix(format!("{}#{:<03}", op.as_str(), idx))
-                    .with_finish(ProgressFinish::Abandon)
+                    // .with_finish(ProgressFinish::Abandon)
                     .with_style(PROGRESS_STYLE.clone()),
             );
 
