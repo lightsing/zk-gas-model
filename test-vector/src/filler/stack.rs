@@ -5,6 +5,21 @@ use revm_primitives::bytes::{BufMut, BytesMut};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
+    map.insert(
+        OpCode::POP,
+        Arc::new(TestCaseBuilder {
+            description: Arc::from(OpCode::POP.as_str()),
+            support_repetition: 1..1025,
+            stack_builder: Box::new(|stack, params| {
+                let mut rng = params.rng();
+                for _ in 0..params.repetition {
+                    assert!(stack.push(rng.random()));
+                }
+            }),
+            bytecode_builder: default_bytecode_builder(OpCode::POP),
+            ..Default::default()
+        }),
+    );
     fill_push(map);
     fill_dup_swap(map, true);
     fill_dup_swap(map, false);

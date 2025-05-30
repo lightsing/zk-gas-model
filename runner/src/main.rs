@@ -1,5 +1,5 @@
 use clap::Parser;
-use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressIterator, ProgressStyle};
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
@@ -61,9 +61,12 @@ fn main() {
         .for_each(|((op, builder), (idx, seed))| {
             let tcs = builder.build_all(Some(*seed));
 
-            let pb = m.add(ProgressBar::new(tcs.len() as u64));
-            pb.set_prefix(format!("{}#{:<03}", op.as_str(), idx));
-            pb.set_style(PROGRESS_STYLE.clone());
+            let pb = m.add(
+                ProgressBar::new(tcs.len() as u64)
+                    .with_prefix(format!("{}#{:<03}", op.as_str(), idx))
+                    .with_finish(ProgressFinish::Abandon)
+                    .with_style(PROGRESS_STYLE.clone()),
+            );
 
             for tc in tcs.into_iter().progress_with(pb) {
                 let result = runner::run_test(&client, *op, tc);

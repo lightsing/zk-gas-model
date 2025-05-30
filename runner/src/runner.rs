@@ -11,6 +11,7 @@ pub struct TestRunResult {
 
     kind: TestCaseKind,
     repetition: usize,
+    #[allow(unused)]
     input_size: usize,
 
     baseline_report: ExecutionReport,

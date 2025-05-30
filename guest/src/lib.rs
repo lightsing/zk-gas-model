@@ -1,6 +1,6 @@
 use revm_bytecode::Bytecode;
 use revm_context::{BlockEnv, CfgEnv, Journal, LocalContext, TxEnv};
-use revm_database::{Cache, CacheDB, DbAccount, EmptyDB};
+use revm_database::{Cache, CacheDB, EmptyDB};
 use revm_interpreter::interpreter::EthInterpreter;
 use revm_primitives::{Address, TxKind, U256, hardfork::SpecId};
 use revm_state::AccountInfo;
