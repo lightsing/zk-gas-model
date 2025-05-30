@@ -145,7 +145,7 @@ impl TestRunResult {
     }
 
     pub fn to_dynamic_simple_case_result(&self) -> DynamicSimpleCaseResult {
-        assert!(matches!(self.kind, TestCaseKind::ConstantSimple));
+        assert!(matches!(self.kind, TestCaseKind::DynamicSimple));
         self.sanity_check();
         self.sanity_check_simple();
 
