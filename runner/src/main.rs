@@ -75,9 +75,11 @@ fn main() {
                     TestCaseKind::ConstantSimple => {
                         writer.serialize(result.to_constant_simple_case_result())
                     }
-
                     TestCaseKind::ConstantMixed => {
                         writer.serialize(result.to_constant_mixed_case_result())
+                    }
+                    TestCaseKind::DynamicSimple => {
+                        writer.serialize(result.to_dynamic_simple_case_result())
                     }
                     _ => unimplemented!(),
                 }

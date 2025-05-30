@@ -11,7 +11,6 @@ pub struct TestRunResult {
 
     kind: TestCaseKind,
     repetition: usize,
-    #[allow(unused)]
     input_size: usize,
 
     baseline_report: ExecutionReport,
@@ -41,6 +40,18 @@ pub struct ConstantMixedCaseResult {
     exec_instruction_count: u64,
     exec_sp1_gas: u64,
     instruction_count_consumes_by_other_estimated: f64,
+    evm_gas: u64,
+}
+
+#[derive(Serialize)]
+pub struct DynamicSimpleCaseResult {
+    opcode: &'static str,
+    repetition: usize,
+    input_size: usize,
+    baseline_instruction_count: u64,
+    baseline_sp1_gas: u64,
+    exec_instruction_count: u64,
+    exec_sp1_gas: u64,
     evm_gas: u64,
 }
 
@@ -78,15 +89,7 @@ impl TestRunResult {
     pub fn to_constant_simple_case_result(&self) -> ConstantSimpleCaseResult {
         assert!(matches!(self.kind, TestCaseKind::ConstantSimple));
         self.sanity_check();
-        assert!(
-            self.opcodes_usage
-                .iter()
-                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
-                .next()
-                .is_none(),
-            "simple case should only use the opcode {}",
-            self.opcode
-        );
+        self.sanity_check_simple();
 
         ConstantSimpleCaseResult {
             opcode: self.opcode.as_str(),
@@ -141,6 +144,23 @@ impl TestRunResult {
         }
     }
 
+    pub fn to_dynamic_simple_case_result(&self) -> DynamicSimpleCaseResult {
+        assert!(matches!(self.kind, TestCaseKind::ConstantSimple));
+        self.sanity_check();
+        self.sanity_check_simple();
+
+        DynamicSimpleCaseResult {
+            opcode: self.opcode.as_str(),
+            repetition: self.repetition,
+            input_size: self.input_size,
+            baseline_instruction_count: self.baseline_report.total_instruction_count(),
+            baseline_sp1_gas: self.baseline_report.gas.unwrap(),
+            exec_instruction_count: self.exec_report.total_instruction_count(),
+            exec_sp1_gas: self.exec_report.gas.unwrap(),
+            evm_gas: self.interpreter_result.gas.spent(),
+        }
+    }
+
     fn sanity_check(&self) {
         assert_eq!(
             self.opcodes_usage.get(OpCode::STOP),
@@ -152,6 +172,18 @@ impl TestRunResult {
             self.repetition,
             "Opcode usage mismatch for {}",
             self.opcode,
+        );
+    }
+
+    fn sanity_check_simple(&self) {
+        assert!(
+            self.opcodes_usage
+                .iter()
+                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
+                .next()
+                .is_none(),
+            "simple case should only use the opcode {}",
+            self.opcode
         );
     }
 }
