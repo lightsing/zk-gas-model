@@ -2,7 +2,10 @@ import numpy as np
 import pandas as pd
 
 def process_simple(df: pd.DataFrame) -> pd.DataFrame:
-    df["instruction_delta_per_op"] = (df["exec_instruction_count"] - df["baseline_instruction_count"]) / df["repetition"]
+    delta = df["exec_instruction_count"] - df["baseline_instruction_count"]
+    if "instruction_count_consumes_by_other_estimated" in df.columns:
+        delta -= df["instruction_count_consumes_by_other_estimated"]
+    df["instruction_delta_per_op"] = delta / df["repetition"]
     return df
 
 def clip_p5_p95(df: pd.DataFrame) -> pd.DataFrame:
