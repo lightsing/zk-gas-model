@@ -10,8 +10,7 @@ use std::{
 };
 use test_vector::{TEST_VECTORS, TestCaseKind};
 
-const GUEST_BASELINE_ELF: &[u8] = include_bytes!("../elf/baseline/evm-guest");
-const GUEST_EXEC_ELF: &[u8] = include_bytes!("../elf/exec/evm-guest");
+const GUEST_ELF: &[u8] = include_bytes!("../elf/evm-guest");
 
 mod runner;
 

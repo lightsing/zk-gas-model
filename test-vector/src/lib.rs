@@ -230,6 +230,10 @@ impl TestCase {
         &self.interpreter
     }
 
+    pub fn interpreter_mut(&mut self) -> &mut Interpreter {
+        &mut self.interpreter
+    }
+
     pub fn context_builder(&self) -> &ContextBuilder {
         &self.context_builder
     }

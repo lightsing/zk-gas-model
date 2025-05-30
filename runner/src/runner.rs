@@ -1,14 +1,17 @@
-use crate::{GUEST_BASELINE_ELF, GUEST_EXEC_ELF};
+use crate::GUEST_ELF;
 use itertools::Itertools;
-use revm_bytecode::OpCode;
-use revm_interpreter::InterpreterResult;
+use revm_bytecode::{Bytecode, OpCode};
+use revm_interpreter::{InterpreterResult, interpreter::ExtBytecode};
 use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
+use std::{mem, sync::LazyLock};
 use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
 
 thread_local! {
     static CLIENT: CpuProver = CpuProver::new();
 }
+
+static BASELINE_BYTECODE: LazyLock<Bytecode> = LazyLock::new(|| Bytecode::new_legacy([0u8].into()));
 
 pub struct TestRunResult {
     opcode: OpCode,
@@ -19,9 +22,7 @@ pub struct TestRunResult {
 
     baseline_report: ExecutionReport,
     exec_report: ExecutionReport,
-    #[allow(unused)]
-    interpreter_result: InterpreterResult,
-
+    // interpreter_result: InterpreterResult,
     opcodes_usage: OpcodeUsage,
 }
 
@@ -51,23 +52,38 @@ pub struct DynamicSimpleCaseResult {
     exec_instruction_count: u64,
 }
 
-pub fn run_test(opcode: OpCode, tc: TestCase) -> TestRunResult {
+pub fn run_test(opcode: OpCode, mut tc: TestCase) -> TestRunResult {
     let kind = tc.kind();
     let repetition = tc.repetition();
     let input_size = tc.input_size();
 
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&tc.spec_id());
-    stdin.write(&tc.interpreter());
-    stdin.write(&tc.context_builder());
+    let mut target_bytecode = mem::replace(
+        &mut tc.interpreter_mut().bytecode,
+        ExtBytecode::new(BASELINE_BYTECODE.clone()),
+    );
 
-    let (_, baseline_report) = CLIENT
-        .with(|client| client.execute(GUEST_BASELINE_ELF, &stdin).run())
-        .unwrap();
-    let (mut output, exec_report) = CLIENT
-        .with(|client| client.execute(GUEST_EXEC_ELF, &stdin).run())
-        .unwrap();
-    let interpreter_result: InterpreterResult = output.read();
+    let (_, baseline_report) = {
+        let mut baseline_stdin = SP1Stdin::new();
+        baseline_stdin.write(&tc.spec_id());
+        baseline_stdin.write(&tc.interpreter());
+        baseline_stdin.write(&tc.context_builder());
+        CLIENT
+            .with(|client| client.execute(GUEST_ELF, &baseline_stdin).run())
+            .unwrap()
+    };
+
+    mem::swap(&mut tc.interpreter_mut().bytecode, &mut target_bytecode);
+    let (_, exec_report) = {
+        let mut exec_stdin = SP1Stdin::new();
+        exec_stdin.write(&tc.spec_id());
+        exec_stdin.write(&tc.interpreter());
+        exec_stdin.write(&tc.context_builder());
+        CLIENT
+            .with(|client| client.execute(GUEST_ELF, &exec_stdin).run())
+            .unwrap()
+    };
+
+    // let interpreter_result: InterpreterResult = output.read();
 
     let opcodes_usage = tc.count_opcodes();
 
@@ -79,8 +95,7 @@ pub fn run_test(opcode: OpCode, tc: TestCase) -> TestRunResult {
 
         baseline_report,
         exec_report,
-        interpreter_result,
-
+        // interpreter_result,
         opcodes_usage,
     }
 }
