@@ -7,10 +7,7 @@ use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use std::{mem, sync::LazyLock};
 use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
 
-thread_local! {
-    static CLIENT: CpuProver = CpuProver::new();
-}
-
+static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
 static BASELINE_BYTECODE: LazyLock<Bytecode> = LazyLock::new(|| Bytecode::new_legacy([0u8].into()));
 
 pub struct TestRunResult {
@@ -63,24 +60,20 @@ pub fn run_test(opcode: OpCode, mut tc: TestCase) -> TestRunResult {
     );
 
     let (_, baseline_report) = {
-        let mut baseline_stdin = SP1Stdin::new();
-        baseline_stdin.write(&tc.spec_id());
-        baseline_stdin.write(&tc.interpreter());
-        baseline_stdin.write(&tc.context_builder());
-        CLIENT
-            .with(|client| client.execute(GUEST_ELF, &baseline_stdin).run())
-            .unwrap()
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&tc.spec_id());
+        stdin.write(&tc.interpreter());
+        stdin.write(&tc.context_builder());
+        CLIENT.execute(GUEST_ELF, &stdin).run().unwrap()
     };
 
     mem::swap(&mut tc.interpreter_mut().bytecode, &mut target_bytecode);
     let (_, exec_report) = {
-        let mut exec_stdin = SP1Stdin::new();
-        exec_stdin.write(&tc.spec_id());
-        exec_stdin.write(&tc.interpreter());
-        exec_stdin.write(&tc.context_builder());
-        CLIENT
-            .with(|client| client.execute(GUEST_ELF, &exec_stdin).run())
-            .unwrap()
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&tc.spec_id());
+        stdin.write(&tc.interpreter());
+        stdin.write(&tc.context_builder());
+        CLIENT.execute(GUEST_ELF, &stdin).run().unwrap()
     };
 
     // let interpreter_result: InterpreterResult = output.read();

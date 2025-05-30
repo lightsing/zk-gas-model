@@ -1,5 +1,5 @@
 use clap::Parser;
-use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressIterator, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
