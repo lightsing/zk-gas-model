@@ -27,7 +27,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             }),
             bytecode_builder: Box::new(|params| {
                 Bytecode::new_legacy(Bytes::from(
-                    [OpCode::BLOCKHASH.get(), OpCode::POP.get()].repeat(params.repetition),
+                    [OpCode::BLOBHASH.get(), OpCode::POP.get()].repeat(params.repetition),
                 ))
             }),
             context_builder: Box::new(|context_builder, _params| {

@@ -239,9 +239,8 @@ impl TestCase {
             let guard = counter.lock();
             guard.reset();
             let mut context = self.context_builder.build(self.spec_id);
-            INSTRUCTION_TABLE_WITH_COUNTING.with(|table| {
-                self.interpreter.run_plain(table, &mut context);
-            });
+            INSTRUCTION_TABLE_WITH_COUNTING
+                .with(|table| self.interpreter.run_plain(table, &mut context));
             let usage = guard.read();
             guard.reset();
             usage
