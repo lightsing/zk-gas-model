@@ -2,14 +2,12 @@ use crate::counting::{INSTRUCTION_COUNTER, INSTRUCTION_TABLE_WITH_COUNTING};
 use clap::ValueEnum;
 use evm_guest::{ContextBuilder, Interpreter};
 use itertools::Itertools;
-use rand::SeedableRng;
-use rand_xoshiro::Xoshiro256Plus;
-use revm_bytecode::{Bytecode, OpCode};
+use revm_bytecode::OpCode;
 use revm_interpreter::{
     CallInput, InputsImpl, SharedMemory, Stack, interpreter::ExtBytecode,
     interpreter_types::ReturnData,
 };
-use revm_primitives::{Address, U256, address, bytes::BytesMut, hardfork::SpecId};
+use revm_primitives::{Address, U256, bytes::BytesMut, hardfork::SpecId};
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
@@ -19,11 +17,22 @@ use std::{
 
 mod counting;
 pub use counting::OpcodeUsage;
+use serde::Deserialize;
 
 mod filler;
 
-pub static CONSTANT_OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, f64>> = LazyLock::new(|| {
-    serde_json::from_str::<BTreeMap<String, f64>>(include_str!("constant-opcode-lut.json"))
+#[derive(Debug, Copy, Clone, Deserialize)]
+#[serde(untagged)]
+/// The opcode cycle model describes how to estimate the cycle count of an opcode.
+pub enum CycleModel {
+    /// The cycle of this opcode is constant, irrelevant to input size.
+    Constant(f64),
+    /// The cycle of this opcode is linear, with a slope and intercept.
+    Linear { slope: f64, intercept: f64 },
+}
+
+pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, CycleModel>> = LazyLock::new(|| {
+    serde_json::from_str::<BTreeMap<String, CycleModel>>(include_str!("opcode-lut.json"))
         .expect("Failed to parse opcode cycle LUT")
         .into_iter()
         .map(|(k, v)| (k.parse().unwrap(), v))
@@ -37,23 +46,6 @@ pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = Lazy
 
     map
 });
-
-pub const CALLER_ADDRESS: Address = address!("0xcafecafecafecafecafecafecafecafecafecafe");
-pub const CALEE_ADDRESS: Address = address!("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
-
-pub(crate) type MemoryBuilder = Box<dyn Fn(&mut SharedMemory, BuilderParams) + Send + Sync>;
-pub(crate) type StackBuilder = Box<dyn Fn(&mut Stack, BuilderParams) + Send + Sync>;
-pub(crate) type ReturnDataBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
-pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send + Sync>;
-pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
-pub(crate) type ContextBuilderFn = Box<dyn Fn(&mut ContextBuilder, BuilderParams) + Send + Sync>;
-
-#[derive(Debug, Copy, Clone)]
-pub(crate) struct BuilderParams {
-    pub(crate) repetition: usize,
-    pub(crate) input_size: usize,
-    pub(crate) random_seed: Option<u64>,
-}
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum TestCaseKind {
@@ -79,15 +71,15 @@ pub struct TestCaseBuilder {
     support_input_size: Vec<usize>,
 
     // interpreter builder
-    memory_builder: MemoryBuilder,
-    stack_builder: StackBuilder,
-    return_data_builder: ReturnDataBuilder,
-    bytecode_builder: BytecodeBuilder,
+    memory_builder: filler::MemoryBuilder,
+    stack_builder: filler::StackBuilder,
+    return_data_builder: filler::ReturnDataBuilder,
+    bytecode_builder: filler::BytecodeBuilder,
 
     // host builder
-    context_builder: ContextBuilderFn,
+    context_builder: filler::ContextBuilderFn,
 
-    input_builder: InputBuilder,
+    input_builder: filler::InputBuilder,
     target_address: Address,
     caller_address: Address,
     call_value: U256,
@@ -105,12 +97,12 @@ pub struct TestCase {
     context_builder: ContextBuilder,
 }
 
-impl BuilderParams {
-    pub fn rng(&self) -> Xoshiro256Plus {
-        if let Some(seed) = self.random_seed {
-            Xoshiro256Plus::seed_from_u64(seed)
-        } else {
-            Xoshiro256Plus::from_os_rng()
+impl CycleModel {
+    /// Returns the cycle counts for the given input size.
+    pub fn estimate_cycle_count(&self, input_size: usize) -> f64 {
+        match self {
+            CycleModel::Constant(cycle) => *cycle,
+            CycleModel::Linear { slope, intercept } => slope * (input_size as f64) + intercept,
         }
     }
 }
@@ -126,7 +118,7 @@ impl TestCaseBuilder {
             .into_iter()
             .cartesian_product(self.support_input_size.iter().copied())
             .filter_map(|(repetition, input_size)| {
-                let params = BuilderParams {
+                let params = filler::BuilderParams {
                     repetition,
                     input_size,
                     random_seed,
@@ -179,27 +171,6 @@ impl TestCaseBuilder {
                 })
             })
             .collect::<Vec<TestCase>>()
-    }
-}
-
-impl Default for TestCaseBuilder {
-    fn default() -> Self {
-        Self {
-            description: Arc::from("DEFAULT"),
-            kind: TestCaseKind::ConstantSimple,
-            support_repetition: 1..2,
-            support_input_size: vec![1],
-            memory_builder: Box::new(|_memory: &mut SharedMemory, _params: BuilderParams| {}),
-            stack_builder: Box::new(|_stack: &mut Stack, _params: BuilderParams| {}),
-            return_data_builder: Box::new(|_return_data: &mut BytesMut, _params: BuilderParams| {}),
-            bytecode_builder: Box::new(|_params| Bytecode::default()),
-            input_builder: Box::new(|_input: &mut BytesMut, _params: BuilderParams| {}),
-            context_builder: Box::new(|_context_builder, _params| {}),
-            target_address: CALEE_ADDRESS,
-            caller_address: CALLER_ADDRESS,
-            call_value: U256::ZERO,
-            spec_id: SpecId::OSAKA,
-        }
     }
 }
 

@@ -38,3 +38,8 @@ def binned_mode(series: pd.Series, bins=25):
     max_bin = np.argmax(counts)
     bin_center = (edges[max_bin] + edges[max_bin + 1]) / 2
     return bin_center
+
+def agg_mode(data: pd.Series):
+    bins = auto_bin_count(data)
+    mode = binned_mode(data, bins=bins)
+    return mode

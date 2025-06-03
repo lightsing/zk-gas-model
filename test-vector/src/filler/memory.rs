@@ -1,4 +1,7 @@
-use crate::{BuilderParams, TestCaseBuilder, TestCaseKind, filler::default_bytecode_builder};
+use crate::{
+    TestCaseBuilder, TestCaseKind,
+    filler::{BuilderParams, default_bytecode_builder},
+};
 use rand::{Rng, RngCore};
 use revm_bytecode::{Bytecode, OpCode};
 use revm_interpreter::SharedMemory;
@@ -6,7 +9,7 @@ use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
-    const MAX_MEMORY_SIZE_LOG2: u32 = 21;
+    const MAX_MEMORY_SIZE_LOG2: u32 = 15;
 
     let memory_filler = |memory: &mut SharedMemory, params: BuilderParams| {
         let mut rng = params.rng();

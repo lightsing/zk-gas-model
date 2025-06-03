@@ -5310,8 +5310,11 @@ dependencies = [
  "rayon",
  "revm-bytecode",
  "revm-context",
+ "revm-database",
  "revm-interpreter",
  "revm-primitives",
+ "revm-state",
+ "serde",
  "serde_json",
 ]
 

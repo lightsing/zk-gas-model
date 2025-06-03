@@ -5,7 +5,7 @@ use revm_interpreter::interpreter::ExtBytecode;
 use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use std::{mem, sync::LazyLock};
-use test_vector::{CONSTANT_OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
+use test_vector::{OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
 
 static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
 static BASELINE_BYTECODE: LazyLock<Bytecode> = LazyLock::new(|| Bytecode::new_legacy([0u8].into()));
@@ -47,6 +47,16 @@ pub struct DynamicSimpleCaseResult {
     input_size: usize,
     baseline_instruction_count: u64,
     exec_instruction_count: u64,
+}
+
+#[derive(Serialize)]
+pub struct DynamicMixedCaseResult {
+    opcode: &'static str,
+    repetition: usize,
+    input_size: usize,
+    baseline_instruction_count: u64,
+    exec_instruction_count: u64,
+    instruction_count_consumes_by_other_estimated: f64,
 }
 
 pub fn run_test(opcode: OpCode, mut tc: TestCase) -> TestRunResult {
@@ -110,32 +120,10 @@ impl TestRunResult {
     pub fn to_constant_mixed_case_result(&self) -> ConstantMixedCaseResult {
         assert!(matches!(self.kind, TestCaseKind::ConstantMixed));
         self.sanity_check();
-        assert!(
-            self.opcodes_usage
-                .iter()
-                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
-                .all(|(op, _)| CONSTANT_OPCODE_CYCLE_LUT.contains_key(&op)),
-            "found opcode not in constant lut: {:?}",
-            self.opcodes_usage
-                .iter()
-                .filter(|(op, _)| {
-                    *op != self.opcode
-                        && *op != OpCode::STOP
-                        && !CONSTANT_OPCODE_CYCLE_LUT.contains_key(&op)
-                })
-                .collect_vec()
-        );
+        self.sanity_check_mixed();
 
-        let instruction_count_consumes_by_other_estimated = self
-            .opcodes_usage
-            .iter()
-            .filter_map(|(op, repetition)| {
-                CONSTANT_OPCODE_CYCLE_LUT
-                    .get(&op)
-                    .copied()
-                    .map(|cycle| cycle * repetition as f64)
-            })
-            .sum::<f64>();
+        let instruction_count_consumes_by_other_estimated =
+            self.count_instruction_count_consumes_by_other_estimated();
 
         ConstantMixedCaseResult {
             opcode: self.opcode.as_str(),
@@ -158,6 +146,36 @@ impl TestRunResult {
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
         }
+    }
+
+    pub fn to_dynamic_mixed_case_result(&self) -> DynamicMixedCaseResult {
+        assert!(matches!(self.kind, TestCaseKind::DynamicMixed));
+        self.sanity_check();
+        self.sanity_check_mixed();
+
+        let instruction_count_consumes_by_other_estimated =
+            self.count_instruction_count_consumes_by_other_estimated();
+
+        DynamicMixedCaseResult {
+            opcode: self.opcode.as_str(),
+            repetition: self.repetition,
+            input_size: self.input_size,
+            baseline_instruction_count: self.baseline_report.total_instruction_count(),
+            exec_instruction_count: self.exec_report.total_instruction_count(),
+            instruction_count_consumes_by_other_estimated,
+        }
+    }
+
+    fn count_instruction_count_consumes_by_other_estimated(&self) -> f64 {
+        self.opcodes_usage
+            .iter()
+            .filter(|(op, _)| *op != self.opcode && *op != OpCode::STOP)
+            .filter_map(|(op, repetition)| {
+                OPCODE_CYCLE_LUT
+                    .get(&op)
+                    .map(|model| model.estimate_cycle_count(self.input_size) * repetition as f64)
+            })
+            .sum::<f64>()
     }
 
     fn sanity_check(&self) {
@@ -183,6 +201,22 @@ impl TestRunResult {
                 .is_none(),
             "simple case should only use the opcode {}",
             self.opcode
+        );
+    }
+
+    fn sanity_check_mixed(&self) {
+        assert!(
+            self.opcodes_usage
+                .iter()
+                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
+                .all(|(op, _)| OPCODE_CYCLE_LUT.contains_key(&op)),
+            "found opcode not in constant lut: {:?}",
+            self.opcodes_usage
+                .iter()
+                .filter(|(op, _)| {
+                    *op != self.opcode && *op != OpCode::STOP && !OPCODE_CYCLE_LUT.contains_key(&op)
+                })
+                .collect_vec()
         );
     }
 }

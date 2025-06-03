@@ -11,9 +11,9 @@ use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
 const MAX_KECCAK_SIZE_LOG2: u32 = 21;
-const MAX_CALLDATA_SIZE_LOG2: u32 = 17;
+const MAX_CALLDATA_SIZE_LOG2: u32 = 15;
 const MAX_BYTECODE_SIZE_LOG2: u32 = 14;
-const MAX_RETURNDATA_SIZE_LOG2: u32 = 17;
+const MAX_RETURNDATA_SIZE_LOG2: u32 = 15;
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     [

@@ -17,11 +17,7 @@ except IndexError:
 df = process_simple(pd.read_csv(file))
 df_grouped = df.groupby("opcode", group_keys=True)
 
-def agg(data: pd.Series):
-    bins = auto_bin_count(data)
-    mode = binned_mode(data, bins=bins)
-    return mode
-agged = df_grouped["instruction_delta_per_op"].agg(agg)
+agged = df_grouped["instruction_delta_per_op"].agg(agg_mode)
 print(agged)
 
 with open(out, "w") as f:

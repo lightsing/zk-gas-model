@@ -113,5 +113,34 @@
   "SWAP8": 85.87319481284999,
   "SWAP9": 85.87319481284999,
   "TIMESTAMP": 47.87418926886792,
-  "XOR": 75.87418926886792
+  "XOR": 75.87418926886792,
+
+  "CALLDATACOPY": {
+    "kind": "linear",
+    "slope": 0.7506153417466397,
+    "intercept": 196.26061322955462,
+    "_comments": "need size <= 32KiB"
+  },
+  "CODECOPY": {
+    "kind": "linear",
+    "slope": 0.7604361085096384,
+    "intercept": 266.80917421120836,
+    "_comments": "need size <= 4KiB"
+  },
+  "EXP": {
+    "kind": "linear",
+    "slope": 358.1484381164569,
+    "intercept": 1013.0844746820088
+  },
+  "MCOPY": {
+    "kind": "linear",
+    "slope": 1.2491222395553478,
+    "intercept": 569.1656603380676
+  },
+  "RETURNDATACOPY": {
+    "kind": "linear",
+    "slope": 1.5000725736648377,
+    "intercept": 225.92614502875318,
+    "_comments": "need size <= 32KiB"
+  }
 }

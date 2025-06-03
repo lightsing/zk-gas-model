@@ -5,5 +5,5 @@ use std::{collections::BTreeMap, sync::Arc};
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     [OpCode::SELFBALANCE].into_iter().for_each(|op| {
         map.insert(op, Arc::new(random_stack_io(op)));
-    })
+    });
 }

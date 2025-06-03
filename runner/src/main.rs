@@ -78,7 +78,9 @@ fn main() {
                     TestCaseKind::DynamicSimple => {
                         writer.serialize(result.to_dynamic_simple_case_result())
                     }
-                    _ => unimplemented!(),
+                    TestCaseKind::DynamicMixed => {
+                        writer.serialize(result.to_dynamic_mixed_case_result())
+                    }
                 }
                 .unwrap();
             }
