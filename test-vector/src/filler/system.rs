@@ -1,19 +1,15 @@
 use crate::{
     TestCaseBuilder, TestCaseKind,
     filler::{
-        default_bytecode_builder, default_stack_builder, ensure_memory_input_size_builder,
-        random_bytes_random_size_builder, random_stack_io,
+        MAX_BYTECODE_SIZE_LOG2, MAX_CALLDATA_SIZE_LOG2, MAX_KECCAK_SIZE_LOG2,
+        MAX_RETURNDATA_SIZE_LOG2, default_bytecode_builder, default_stack_builder,
+        ensure_memory_input_size_builder, random_bytes_random_size_builder, random_stack_io,
     },
 };
 use rand::{Rng, RngCore};
 use revm_bytecode::{Bytecode, OpCode};
 use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
-
-const MAX_KECCAK_SIZE_LOG2: u32 = 21;
-const MAX_CALLDATA_SIZE_LOG2: u32 = 15;
-const MAX_BYTECODE_SIZE_LOG2: u32 = 14;
-const MAX_RETURNDATA_SIZE_LOG2: u32 = 15;
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
     [

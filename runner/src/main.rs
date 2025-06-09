@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
     sync::{LazyLock, Mutex},
 };
-use test_vector::{TEST_VECTORS, TestCaseKind};
+use test_vector::{OPCODE_TEST_VECTORS, TestCaseKind};
 
 const GUEST_ELF: &[u8] = include_bytes!("../elf/evm-guest");
 
@@ -49,7 +49,7 @@ fn main() {
         .collect::<Vec<u64>>();
 
     let m = MultiProgress::new();
-    TEST_VECTORS
+    OPCODE_TEST_VECTORS
         .iter()
         .filter(|(_op, tc)| tc.kind() == kind)
         .cartesian_product(seeds.iter().enumerate())

@@ -8,18 +8,55 @@ use revm_interpreter::{
     interpreter_types::ReturnData,
 };
 use revm_primitives::{Address, U256, bytes::BytesMut, hardfork::SpecId};
+use serde::Deserialize;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
     ops::Range,
     sync::{Arc, LazyLock},
 };
 
 mod counting;
-pub use counting::OpcodeUsage;
-use serde::Deserialize;
-
 mod filler;
+
+pub use counting::OpcodeUsage;
+
+pub static OPCODES_EXCLUDED: LazyLock<BTreeSet<OpCode>> = LazyLock::new(|| {
+    [
+        // SELFDESTRUCT is not supported in this test vector
+        OpCode::SELFDESTRUCT,
+        // EOF opcodes are not supported in this test vector
+        OpCode::DATALOAD,
+        OpCode::DATALOADN,
+        OpCode::DATASIZE,
+        OpCode::DATACOPY,
+        OpCode::RJUMP,
+        OpCode::RJUMPI,
+        OpCode::RJUMPV,
+        OpCode::CALLF,
+        OpCode::RETF,
+        OpCode::JUMPF,
+        OpCode::DUPN,
+        OpCode::SWAPN,
+        OpCode::EXCHANGE,
+        OpCode::EOFCREATE,
+        OpCode::TXCREATE,
+        OpCode::RETURNCONTRACT,
+        OpCode::RETURNDATALOAD,
+        OpCode::EXTCALL,
+        OpCode::EXTDELEGATECALL,
+        OpCode::EXTSTATICCALL,
+        // Following opcodes are hard to measure
+        OpCode::STOP,
+        OpCode::JUMP,
+        OpCode::JUMPI,
+        OpCode::JUMPDEST,
+        OpCode::RETURN,
+        OpCode::REVERT,
+        OpCode::INVALID,
+    ]
+    .into()
+});
 
 #[derive(Debug, Copy, Clone, Deserialize)]
 #[serde(untagged)]
@@ -39,13 +76,19 @@ pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, CycleModel>> = LazyLock::
         .collect()
 });
 
-pub static TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> = LazyLock::new(|| {
-    let mut map = BTreeMap::new();
+pub static OPCODE_TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> =
+    LazyLock::new(|| {
+        let mut map = BTreeMap::new();
+        filler::fill_opcodes(&mut map);
+        map
+    });
 
-    filler::fill(&mut map);
-
-    map
-});
+pub static PRECOMPILE_TEST_VECTORS: LazyLock<BTreeMap<Address, Arc<TestCaseBuilder>>> =
+    LazyLock::new(|| {
+        let mut map = BTreeMap::new();
+        filler::precompile::fill(&mut map);
+        map
+    });
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum TestCaseKind {
@@ -264,16 +307,16 @@ mod tests {
         let all_opcodes = (0..=255)
             .filter_map(|op| OpCode::new(op))
             .collect::<BTreeSet<_>>();
-        let implemented_opcodes = TEST_VECTORS.keys().copied().collect::<BTreeSet<_>>();
+        let implemented_opcodes = OPCODE_TEST_VECTORS.keys().copied().collect::<BTreeSet<_>>();
         let unimplemented_opcodes = all_opcodes.difference(&implemented_opcodes);
-        for opcode in unimplemented_opcodes {
+        for opcode in unimplemented_opcodes.filter(|op| !OPCODES_EXCLUDED.contains(op)) {
             println!("{}", opcode.as_str());
         }
     }
 
     #[test]
     fn assert_kinds() {
-        for (op, builder) in TEST_VECTORS.iter() {
+        for (op, builder) in OPCODE_TEST_VECTORS.iter() {
             match builder.kind {
                 TestCaseKind::ConstantSimple | TestCaseKind::ConstantMixed => {
                     assert_eq!(
@@ -299,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_works_constant_simple() {
-        TEST_VECTORS
+        OPCODE_TEST_VECTORS
             .iter()
             .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::ConstantSimple))
             .par_bridge()
@@ -309,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_works_dynamic_simple() {
-        TEST_VECTORS
+        OPCODE_TEST_VECTORS
             .iter()
             .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::DynamicSimple))
             .par_bridge()
@@ -319,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_works_constant_mixed() {
-        TEST_VECTORS
+        OPCODE_TEST_VECTORS
             .iter()
             .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::ConstantMixed))
             .par_bridge()
@@ -329,7 +372,7 @@ mod tests {
 
     #[test]
     fn test_works_dynamic_mixed() {
-        TEST_VECTORS
+        OPCODE_TEST_VECTORS
             .iter()
             .filter(|(_op, builder)| matches!(builder.kind, TestCaseKind::DynamicMixed))
             .par_bridge()

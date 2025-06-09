@@ -3,7 +3,7 @@ use revm_context::{BlockEnv, CfgEnv, Journal, LocalContext, TxEnv};
 use revm_database::{Cache, CacheDB, EmptyDB};
 use revm_interpreter::interpreter::EthInterpreter;
 use revm_primitives::{Address, TxKind, U256, hardfork::SpecId};
-use revm_state::AccountInfo;
+use revm_state::{AccountInfo, TransientStorage};
 use serde::{Deserialize, Serialize};
 
 pub type Context = revm_context::Context<
@@ -25,6 +25,7 @@ pub struct ContextBuilder {
     pub tx: TxEnv,
     pub cfg: CfgEnv,
     pub db: Cache,
+    pub transient_storage: TransientStorage,
 }
 
 impl ContextBuilder {
@@ -43,6 +44,7 @@ impl ContextBuilder {
                 ..Default::default()
             },
             cfg: CfgEnv::default(),
+            transient_storage: TransientStorage::default(),
             db,
         }
     }
@@ -52,9 +54,11 @@ impl ContextBuilder {
             cache: self.db.clone(),
             db: EmptyDB::new(),
         };
-        Context::new(cache_db, spec_id)
+        let mut ctx = Context::new(cache_db, spec_id)
             .with_block(self.block.clone())
             .with_tx(self.tx.clone())
-            .with_cfg(self.cfg.clone())
+            .with_cfg(self.cfg.clone());
+        ctx.journaled_state.transient_storage = self.transient_storage.clone();
+        ctx
     }
 }
