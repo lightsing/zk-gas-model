@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
     sync::{LazyLock, Mutex},
 };
-use test_vector::{OPCODE_TEST_VECTORS, TestCaseKind};
+use test_vector::{OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, TestCaseKind};
 
 const GUEST_ELF: &[u8] = include_bytes!("../elf/evm-guest");
 
@@ -23,6 +23,8 @@ struct Args {
     seed: u64,
     #[clap(long, default_value_t = 100)]
     repeat: usize,
+    #[clap(long)]
+    no_cache: bool,
 }
 
 static PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
@@ -40,6 +42,7 @@ fn main() {
         out,
         seed,
         repeat,
+        no_cache,
     } = Args::parse();
 
     let writer = Mutex::new(csv::Writer::from_path(out).unwrap());
@@ -51,7 +54,7 @@ fn main() {
     let m = MultiProgress::new();
     OPCODE_TEST_VECTORS
         .iter()
-        .filter(|(_op, tc)| tc.kind() == kind)
+        .filter(|(op, tc)| tc.kind() == kind && (no_cache || OPCODE_CYCLE_LUT.contains_key(op)))
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
         .panic_fuse()
