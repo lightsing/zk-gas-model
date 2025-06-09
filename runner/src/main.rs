@@ -54,7 +54,13 @@ fn main() {
     let m = MultiProgress::new();
     OPCODE_TEST_VECTORS
         .iter()
-        .filter(|(op, tc)| tc.kind() == kind && (no_cache || OPCODE_CYCLE_LUT.contains_key(op)))
+        .filter(|(op, tc)| {
+            if no_cache {
+                tc.kind() == kind
+            } else {
+                tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+            }
+        })
         .cartesian_product(seeds.iter().enumerate())
         .par_bridge()
         .panic_fuse()
