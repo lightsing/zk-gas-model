@@ -1,5 +1,5 @@
 use revm_bytecode::Bytecode;
-use revm_context::{BlockEnv, CfgEnv, Journal, LocalContext, TxEnv};
+use revm_context::{BlockEnv, CfgEnv, Journal, JournalTr, LocalContext, TxEnv};
 use revm_database::{Cache, CacheDB, EmptyDB};
 pub use revm_interpreter::interpreter::EthInterpreter;
 use revm_primitives::{Address, TxKind, U256, hardfork::SpecId};
@@ -58,6 +58,12 @@ impl ContextBuilder {
             .with_block(self.block.clone())
             .with_tx(self.tx.clone())
             .with_cfg(self.cfg.clone());
+        ctx.journaled_state.state.extend(
+            self.db
+                .accounts
+                .iter()
+                .map(|(addr, acc)| (*addr, acc.info.clone().into())),
+        );
         ctx.journaled_state.transient_storage = self.transient_storage.clone();
         ctx
     }
