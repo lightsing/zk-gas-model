@@ -86,7 +86,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
         OpCode::BLOCKHASH,
         Arc::new(TestCaseBuilder {
             description: Arc::from(OpCode::BLOCKHASH.as_str()),
-            kind: TestCaseKind::ConstantSimple,
+            kind: TestCaseKind::ConstantMixed,
             support_repetition: 1..1025,
             stack_builder: Box::new(|stack, params| {
                 let mut rng = params.rng();
