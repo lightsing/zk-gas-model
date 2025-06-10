@@ -123,8 +123,8 @@ pub struct TestCaseBuilder {
     context_builder: filler::ContextBuilderFn,
 
     input_builder: filler::InputBuilder,
-    target_address: Address,
-    caller_address: Address,
+    pub target_address: Address,
+    pub caller_address: Address,
     call_value: U256,
 
     spec_id: SpecId,
@@ -155,12 +155,16 @@ impl TestCaseBuilder {
         self.kind
     }
 
-    pub fn build_all(&self, random_seed: Option<u64>) -> Vec<TestCase> {
+    pub fn testcases_len(&self) -> usize {
+        self.support_repetition.len() * self.support_input_size.len()
+    }
+
+    pub fn build_all(&self, random_seed: Option<u64>) -> impl Iterator<Item = TestCase> + '_ {
         self.support_repetition
             .clone()
             .into_iter()
             .cartesian_product(self.support_input_size.iter().copied())
-            .filter_map(|(repetition, input_size)| {
+            .filter_map(move |(repetition, input_size)| {
                 let params = filler::BuilderParams {
                     repetition,
                     input_size,
@@ -213,7 +217,6 @@ impl TestCaseBuilder {
                     context_builder,
                 })
             })
-            .collect::<Vec<TestCase>>()
     }
 }
 
@@ -382,7 +385,7 @@ mod tests {
 
     fn test_works_inner(op: &OpCode, builder: &TestCaseBuilder) {
         let expected_length = builder.support_repetition.len() * builder.support_input_size.len();
-        let tcs = builder.build_all(Some(42));
+        let tcs = builder.build_all(Some(42)).collect::<Vec<_>>();
         assert_eq!(
             tcs.len(),
             expected_length,
