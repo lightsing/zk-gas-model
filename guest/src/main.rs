@@ -2,34 +2,20 @@
 sp1_zkvm::entrypoint!(main);
 
 use evm_guest::*;
-use revm_context::{Evm, result::EVMError};
-use revm_handler::{
-    EthFrame, EthPrecompiles, Handler, ItemOrResult, MainnetHandler, instructions::EthInstructions,
-};
-use revm_interpreter::{InterpreterAction, instruction_table};
-use revm_primitives::hardfork::SpecId;
-use std::convert::Infallible;
-
-static INSTRUCTION_TABLE: InstructionTable = instruction_table();
 
 pub fn main() {
     let spec_id: SpecId = sp1_zkvm::io::read();
-    let mut interpreter: Interpreter = sp1_zkvm::io::read();
+    let interpreter: InterpreterT = sp1_zkvm::io::read();
     let context_builder: ContextBuilder = sp1_zkvm::io::read();
-    let mut context = context_builder.build(spec_id);
+    let context = context_builder.build(spec_id);
 
-    let precompiles = EthPrecompiles::default();
-    let mut evm = Evm::new(
+    let mut evm = EvmT::new(
         context,
-        EthInstructions::<EthInterpreter, Context>::new_mainnet(),
-        precompiles,
+        EthInstructions::new_mainnet(),
+        EthPrecompiles::default(),
     );
 
-    let mut handler = MainnetHandler::<
-        Evm<Context, (), EthInstructions<EthInterpreter, Context>, EthPrecompiles>,
-        EVMError<Infallible>,
-        EthFrame<_, _, _>,
-    >::default();
+    let mut handler = HANDLER;
 
     let first_frame_input = handler.first_frame_input(&mut evm, u64::MAX).unwrap();
     let first_frame = handler

@@ -6,9 +6,8 @@ use crate::{
         ensure_memory_input_size_builder, random_bytes_random_size_builder, random_stack_io,
     },
 };
+use evm_guest::*;
 use rand::{Rng, RngCore};
-use revm_bytecode::{Bytecode, OpCode};
-use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

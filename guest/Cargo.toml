@@ -10,7 +10,6 @@ revm-database.workspace = true
 revm-interpreter.workspace = true
 revm-primitives.workspace = true
 revm-state.workspace = true
-revm-precompile.workspace = true
 revm-handler.workspace = true
 serde.workspace = true
 
@@ -19,3 +18,5 @@ sp1-zkvm = { workspace = true, optional = true }
 [features]
 default = ["guest"]
 guest = ["dep:sp1-zkvm"]
+parse = ["revm-bytecode/parse"]
+rand = ["revm-primitives/rand"]

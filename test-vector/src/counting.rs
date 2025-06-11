@@ -1,10 +1,9 @@
-use evm_guest::{Context, InstructionTable};
-use revm_bytecode::OpCode;
+use evm_guest::*;
 use std::{collections::BTreeMap, sync::Mutex};
 
 thread_local! {
     pub(crate) static INSTRUCTION_COUNTER: InstructionCounter = InstructionCounter::new();
-    pub(crate) static INSTRUCTION_TABLE_WITH_COUNTING: InstructionTable = instruction_table();
+    pub(crate) static INSTRUCTION_TABLE_WITH_COUNTING: InstructionTableT = instruction_table();
 }
 
 pub(crate) struct InstructionCounter {
@@ -69,21 +68,22 @@ impl OpcodeUsage {
         self.0.iter().map(|(k, v)| (*k, *v))
     }
 }
-const fn instruction_table() -> InstructionTable {
-    use revm_bytecode::opcode::*;
-    use revm_interpreter::{
-        instructions::{
-            arithmetic, bitwise, block_info, contract, control, data, host, memory, stack, system,
-            tx_info,
+const fn instruction_table() -> InstructionTableT {
+    use evm_guest::{
+        bytecode::opcode::*,
+        interpreter::{
+            instructions::{
+                arithmetic, bitwise, block_info, contract, control, data, host, memory, stack,
+                system, tx_info,
+            },
+            interpreter::EthInterpreter,
         },
-        interpreter::EthInterpreter,
     };
-    let mut table = [control::unknown as evm_guest::Instruction; 256];
+    let mut table = [control::unknown as InstructionT; 256];
 
     macro_rules! wrap {
         ($op:expr, $inst:expr) => {
-            table[$op as usize] = |interpreter: &mut evm_guest::Interpreter,
-                                   host: &mut evm_guest::Context| {
+            table[$op as usize] = |interpreter: &mut InterpreterT, host: &mut ContextT| {
                 INSTRUCTION_COUNTER.with(|c| c.count($op));
                 $inst(interpreter, host)
             }
@@ -245,13 +245,13 @@ const fn instruction_table() -> InstructionTable {
     wrap!(EXCHANGE, stack::exchange);
     wrap!(EOFCREATE, contract::eofcreate);
     wrap!(TXCREATE, contract::txcreate);
-    wrap!(RETURNCONTRACT, contract::return_contract::<Context>);
-    wrap!(CREATE, contract::create::<EthInterpreter, false, Context>);
+    wrap!(RETURNCONTRACT, contract::return_contract::<ContextT>);
+    wrap!(CREATE, contract::create::<EthInterpreter, false, ContextT>);
     wrap!(CALL, contract::call);
     wrap!(CALLCODE, contract::call_code);
     wrap!(RETURN, control::ret);
     wrap!(DELEGATECALL, contract::delegate_call);
-    wrap!(CREATE2, contract::create::<EthInterpreter, true, Context>);
+    wrap!(CREATE2, contract::create::<EthInterpreter, true, ContextT>);
     wrap!(RETURNDATALOAD, system::returndataload);
     wrap!(EXTCALL, contract::extcall);
     wrap!(EXTDELEGATECALL, contract::extdelegatecall);

@@ -1,12 +1,32 @@
-use revm_bytecode::Bytecode;
-use revm_context::{BlockEnv, CfgEnv, Journal, JournalTr, LocalContext, TxEnv};
-use revm_database::{Cache, CacheDB, EmptyDB};
-pub use revm_interpreter::interpreter::EthInterpreter;
-use revm_primitives::{Address, TxKind, U256, hardfork::SpecId};
-use revm_state::{AccountInfo, TransientStorage};
+use revm_context::{BlockEnv, CfgEnv, Evm, Journal, LocalContext, TxEnv, result::EVMError};
+use revm_handler::{EthFrame, MainnetHandler};
 use serde::{Deserialize, Serialize};
+use std::{convert::Infallible, marker::PhantomData};
 
-pub type Context = revm_context::Context<
+pub use revm_bytecode::{Bytecode, OpCode};
+pub use revm_database::{Cache, CacheDB, DbAccount, EmptyDB};
+pub use revm_handler::{EthPrecompiles, Handler, ItemOrResult, instructions::EthInstructions};
+pub use revm_interpreter::{
+    CallInput, InputsImpl, SharedMemory, Stack,
+    interpreter::{EthInterpreter, ExtBytecode},
+    interpreter_types::ReturnData,
+};
+pub use revm_primitives::{Address, B256, Bytes, TxKind, U256, address, hardfork::SpecId};
+pub use revm_state::{AccountInfo, TransientStorage};
+
+pub use revm_bytecode as bytecode;
+pub use revm_context as context;
+pub use revm_database as database;
+pub use revm_handler as handler;
+pub use revm_interpreter as interpreter;
+pub use revm_primitives as primitives;
+pub use revm_state as state;
+
+pub type EthFrameT = EthFrame<EvmT, EvmErrorT, EthInterpreter>;
+pub type EvmErrorT = EVMError<Infallible>;
+pub type EvmT = Evm<ContextT, (), EthInstructionsT, EthPrecompiles>;
+pub type EthInstructionsT = EthInstructions<EthInterpreter, ContextT>;
+pub type ContextT = revm_context::Context<
     BlockEnv,
     TxEnv,
     CfgEnv,
@@ -15,9 +35,14 @@ pub type Context = revm_context::Context<
     (),
     LocalContext,
 >;
-pub type Interpreter = revm_interpreter::Interpreter<EthInterpreter>;
-pub type Instruction = for<'a> fn(&'a mut Interpreter, &'a mut Context);
-pub type InstructionTable = [Instruction; 256];
+pub type InterpreterT = revm_interpreter::Interpreter<EthInterpreter>;
+pub type InstructionT = for<'a> fn(&'a mut InterpreterT, &'a mut ContextT);
+pub type InstructionTableT = [InstructionT; 256];
+
+pub const HANDLER: MainnetHandler<EvmT, EvmErrorT, EthFrame<EvmT, EvmErrorT, EthInterpreter>> =
+    MainnetHandler {
+        _phantom: PhantomData,
+    };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextBuilder {
@@ -49,12 +74,12 @@ impl ContextBuilder {
         }
     }
 
-    pub fn build(&self, spec_id: SpecId) -> Context {
+    pub fn build(&self, spec_id: SpecId) -> ContextT {
         let cache_db = CacheDB {
             cache: self.db.clone(),
             db: EmptyDB::new(),
         };
-        let mut ctx = Context::new(cache_db, spec_id)
+        let mut ctx = ContextT::new(cache_db, spec_id)
             .with_block(self.block.clone())
             .with_tx(self.tx.clone())
             .with_cfg(self.cfg.clone());

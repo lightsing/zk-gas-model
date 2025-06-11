@@ -1,13 +1,7 @@
 use crate::counting::{INSTRUCTION_COUNTER, INSTRUCTION_TABLE_WITH_COUNTING};
 use clap::ValueEnum;
-use evm_guest::{ContextBuilder, Interpreter};
+use evm_guest::*;
 use itertools::Itertools;
-use revm_bytecode::OpCode;
-use revm_interpreter::{
-    CallInput, InputsImpl, SharedMemory, Stack, interpreter::ExtBytecode,
-    interpreter_types::ReturnData,
-};
-use revm_primitives::{Address, U256, bytes::BytesMut, hardfork::SpecId};
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -20,6 +14,7 @@ mod counting;
 mod filler;
 
 pub use counting::OpcodeUsage;
+use evm_guest::primitives::bytes::BytesMut;
 
 pub static OPCODES_EXCLUDED: LazyLock<BTreeSet<OpCode>> = LazyLock::new(|| {
     [
@@ -123,8 +118,8 @@ pub struct TestCaseBuilder {
     context_builder: filler::ContextBuilderFn,
 
     input_builder: filler::InputBuilder,
-    pub target_address: Address,
-    pub caller_address: Address,
+    target_address: Address,
+    caller_address: Address,
     call_value: U256,
 
     spec_id: SpecId,
@@ -136,7 +131,7 @@ pub struct TestCase {
     spec_id: SpecId,
     repetition: usize,
     input_size: usize,
-    interpreter: Interpreter,
+    interpreter: InterpreterT,
     context_builder: ContextBuilder,
 }
 
@@ -195,7 +190,7 @@ impl TestCaseBuilder {
                     ContextBuilder::new(self.caller_address, self.target_address, bytecode.clone());
                 (self.context_builder)(&mut context_builder, params);
 
-                let mut interpreter = Interpreter::new(
+                let mut interpreter = InterpreterT::new(
                     shared_memory,
                     ExtBytecode::new(bytecode),
                     inputs,
@@ -243,11 +238,11 @@ impl TestCase {
         self.input_size
     }
 
-    pub fn interpreter(&self) -> &Interpreter {
+    pub fn interpreter(&self) -> &InterpreterT {
         &self.interpreter
     }
 
-    pub fn interpreter_mut(&mut self) -> &mut Interpreter {
+    pub fn interpreter_mut(&mut self) -> &mut InterpreterT {
         &mut self.interpreter
     }
 
@@ -255,13 +250,34 @@ impl TestCase {
         &self.context_builder
     }
 
-    pub fn count_opcodes(mut self) -> OpcodeUsage {
+    pub fn count_opcodes(self) -> OpcodeUsage {
         INSTRUCTION_COUNTER.with(|counter| {
             let guard = counter.lock();
             guard.reset();
-            let mut context = self.context_builder.build(self.spec_id);
-            INSTRUCTION_TABLE_WITH_COUNTING
-                .with(|table| self.interpreter.run_plain(table, &mut context));
+
+            let context = self.context_builder.build(self.spec_id);
+            let instructions =
+                INSTRUCTION_TABLE_WITH_COUNTING.with(|table| EthInstructionsT::new(table.clone()));
+
+            let mut evm = EvmT::new(context, instructions, EthPrecompiles::default());
+
+            let mut handler = HANDLER;
+
+            let first_frame_input = handler.first_frame_input(&mut evm, u64::MAX).unwrap();
+            let first_frame = handler
+                .first_frame_init(&mut evm, first_frame_input)
+                .unwrap();
+
+            let mut frame_result = match first_frame {
+                ItemOrResult::Item(mut frame) => {
+                    frame.interpreter = self.interpreter;
+                    handler.run_exec_loop(&mut evm, frame).unwrap()
+                }
+                ItemOrResult::Result(result) => result,
+            };
+            handler
+                .last_frame_result(&mut evm, &mut frame_result)
+                .unwrap();
             let usage = guard.read();
             guard.reset();
             usage

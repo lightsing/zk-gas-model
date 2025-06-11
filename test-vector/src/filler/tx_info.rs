@@ -1,8 +1,6 @@
 use crate::{TestCaseBuilder, TestCaseKind, filler::random_stack_io};
+use evm_guest::{context::TransactionType, *};
 use rand::Rng;
-use revm_bytecode::{Bytecode, OpCode};
-use revm_context::TransactionType;
-use revm_primitives::{B256, Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

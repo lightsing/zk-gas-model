@@ -1922,7 +1922,6 @@ dependencies = [
  "revm-database",
  "revm-handler",
  "revm-interpreter",
- "revm-precompile 22.0.0",
  "revm-primitives",
  "revm-state",
  "serde",
@@ -4229,22 +4228,6 @@ dependencies = [
  "revm-precompile 21.0.0",
  "revm-primitives",
  "revm-state",
- "serde",
-]
-
-[[package]]
-name = "revm-inspector"
-version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae4881eeae6ff35417c8569bc7cc03b6c0969869ee2c9b3945a39b4f9fa58bc5"
-dependencies = [
- "auto_impl",
- "revm-context",
- "revm-database-interface",
- "revm-handler",
- "revm-interpreter",
- "revm-primitives",
- "revm-state",
 ]
 
 [[package]]
@@ -5575,15 +5558,7 @@ dependencies = [
  "rand 0.9.1",
  "rand_xoshiro",
  "rayon",
- "revm-bytecode",
- "revm-context",
- "revm-database",
- "revm-handler",
- "revm-inspector",
- "revm-interpreter",
  "revm-precompile 22.0.0",
- "revm-primitives",
- "revm-state",
  "serde",
  "serde_json",
 ]

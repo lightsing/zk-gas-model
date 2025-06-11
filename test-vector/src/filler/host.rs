@@ -6,11 +6,8 @@ use crate::{
         fill_with_random_bytecodes, random_accounts, random_addresses,
     },
 };
+use evm_guest::*;
 use rand::Rng;
-use revm_bytecode::OpCode;
-use revm_database::DbAccount;
-use revm_primitives::U256;
-use revm_state::AccountInfo;
 use std::{collections::BTreeMap, iter, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

@@ -5,8 +5,7 @@ use crate::{
         ensure_memory_input_size_builder, random_accounts, random_addresses,
     },
 };
-use revm_bytecode::OpCode;
-use revm_primitives::U256;
+use evm_guest::*;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

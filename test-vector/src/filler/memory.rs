@@ -2,10 +2,8 @@ use crate::{
     TestCaseBuilder, TestCaseKind,
     filler::{BuilderParams, default_bytecode_builder},
 };
+use evm_guest::*;
 use rand::{Rng, RngCore};
-use revm_bytecode::{Bytecode, OpCode};
-use revm_interpreter::SharedMemory;
-use revm_primitives::{Bytes, U256};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

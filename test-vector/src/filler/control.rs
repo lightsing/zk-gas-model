@@ -1,5 +1,5 @@
 use crate::{TestCaseBuilder, filler::random_stack_io};
-use revm_bytecode::OpCode;
+use evm_guest::*;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {

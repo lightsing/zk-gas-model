@@ -1,12 +1,7 @@
 use crate::{TestCaseBuilder, TestCaseKind};
-use evm_guest::ContextBuilder;
+use evm_guest::{primitives::bytes::BytesMut, *};
 use rand::{Rng, RngCore, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
-use revm_bytecode::{Bytecode, OpCode};
-use revm_database::DbAccount;
-use revm_interpreter::{SharedMemory, Stack};
-use revm_primitives::{Address, Bytes, U256, address, bytes::BytesMut, hardfork::SpecId};
-use revm_state::AccountInfo;
 use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
 mod arithmetic;

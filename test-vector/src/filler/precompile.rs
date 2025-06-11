@@ -3,10 +3,9 @@ use ark_bn254::{Fq, Fr, G1Affine};
 use ark_ec::AffineRepr;
 use ark_ff::{BigInt, Field, One, ToConstraintField};
 use ark_serialize::CanonicalSerialize;
+use evm_guest::*;
 use rand::Rng;
-use revm_bytecode::OpCode;
 use revm_precompile::u64_to_address;
-use revm_primitives::{Address, U256};
 use std::{collections::BTreeMap, ops::Sub, sync::Arc};
 
 pub(crate) fn fill(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
@@ -80,17 +79,17 @@ fn fill_ec_mul(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
 //         InterpreterAction, InterpreterTypes, instruction_table,
 //     };
 //     use std::convert::Infallible;
-// 
+//
 //     static INSTRUCTION_TABLE: InstructionTable = instruction_table();
-// 
+//
 //     struct DebugInspector;
-// 
+//
 //     impl Inspector<Context, EthInterpreter> for DebugInspector {
 //         fn step(&mut self, interp: &mut Interpreter<EthInterpreter>, context: &mut Context) {
 //             println!("1");
 //         }
 //     }
-// 
+//
 //     // #[test]
 //     // fn test_fill_ec_mul() {
 //     //     let mut map = BTreeMap::new();

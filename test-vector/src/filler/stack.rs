@@ -1,7 +1,9 @@
 use crate::{TestCaseBuilder, filler::default_bytecode_builder};
+use evm_guest::{
+    primitives::bytes::{BufMut, BytesMut},
+    *,
+};
 use rand::Rng;
-use revm_bytecode::{Bytecode, OpCode};
-use revm_primitives::bytes::{BufMut, BytesMut};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
