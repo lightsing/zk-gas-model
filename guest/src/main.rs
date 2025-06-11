@@ -27,7 +27,7 @@ pub fn main() {
             frame.interpreter = interpreter;
             handler.run_exec_loop(&mut evm, frame).unwrap()
         }
-        ItemOrResult::Result(result) => result,
+        ItemOrResult::Result(_) => unreachable!("case not expected"),
     };
     handler
         .last_frame_result(&mut evm, &mut frame_result)
