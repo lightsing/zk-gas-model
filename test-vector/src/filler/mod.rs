@@ -26,7 +26,7 @@ pub(crate) type BytecodeBuilder = Box<dyn Fn(BuilderParams) -> Bytecode + Send +
 pub(crate) type InputBuilder = Box<dyn Fn(&mut BytesMut, BuilderParams) + Send + Sync>;
 pub(crate) type ContextBuilderFn = Box<dyn Fn(&mut ContextBuilder, BuilderParams) + Send + Sync>;
 
-const MAX_KECCAK_SIZE_LOG2: u32 = 21;
+const MAX_KECCAK_SIZE_LOG2: u32 = 14;
 const MAX_CALLDATA_SIZE_LOG2: u32 = 15;
 const MAX_BYTECODE_SIZE_LOG2: u32 = 14;
 const MAX_RETURNDATA_SIZE_LOG2: u32 = 15;
