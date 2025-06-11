@@ -33,9 +33,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
         Arc::new(TestCaseBuilder {
             description: Arc::from(OpCode::KECCAK256.as_str()),
             kind: TestCaseKind::DynamicMixed,
-            support_repetition: 1..1024,
-            // 10M gas ~ 53333184 bytes (~50.8MB) input
-            // input size
+            support_repetition: 1..256,
             support_input_size: (0..MAX_KECCAK_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
