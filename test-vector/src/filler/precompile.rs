@@ -70,9 +70,9 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
         name.clone(),
         Arc::new(TestCaseBuilder {
             description: name,
-            kind: TestCaseKind::DynamicMixed,
+            // analysis found that cycles are almost irrelevant to bits
+            kind: TestCaseKind::ConstantMixed,
             support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
-            support_input_size: (0..254).collect(), // how many 1 in the scalar bits
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
 
@@ -83,8 +83,9 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
 
                 // scalar = 2^input_size - 1
                 // we won't exceed the 254 bits of Fr
+                let bits: u32 = rng.random_range((0..254));
                 let scalar = U256::from(2u8)
-                    .pow(U256::from(params.input_size as u32))
+                    .pow(U256::from(bits))
                     .sub(U256::ONE)
                     .to_be_bytes::<32>();
 
