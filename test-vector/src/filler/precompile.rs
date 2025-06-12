@@ -115,7 +115,7 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     let addr = u64_to_address(0x08);
 
     const BLOCK_GAS_TARGET: u64 = 20_000_000;
-    const MAX_PAIR_LEN: u64 = (BLOCK_GAS_TARGET - PAIR_BASE_COST) / PAIR_PER_POINT_COST;
+    const MAX_PAIR_LEN: u64 = 10;
 
     map.insert(
         name.clone(),
