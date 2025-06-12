@@ -21,7 +21,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             op,
             Arc::new(TestCaseBuilder {
                 description: Arc::from(op.as_str()),
-                kind: TestCaseKind::DynamicSimple,
+                kind: TestCaseKind::DynamicMixed,
                 support_repetition: 1..1024 / op.inputs() as usize,
                 support_input_size: (0..MAX_CALLDATA_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
                 memory_builder: ensure_memory_input_size_builder(),
