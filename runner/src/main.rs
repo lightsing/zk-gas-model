@@ -57,6 +57,7 @@ fn main() {
             repeat,
             PRECOMPILE_TEST_VECTORS
                 .iter()
+                .filter(|(_, tc)| tc.kind() == kind)
                 .map(|(name, tc)| (OpCodeOrPrecompile::Precompile(name.clone()), tc.clone())),
         );
     } else {
