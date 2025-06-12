@@ -5,13 +5,13 @@ use revm_interpreter::interpreter::ExtBytecode;
 use serde::Serialize;
 use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use std::{mem, sync::LazyLock};
-use test_vector::{OPCODE_CYCLE_LUT, OpcodeUsage, TestCase, TestCaseKind};
+use test_vector::{OPCODE_CYCLE_LUT, OpCodeOrPrecompile, OpcodeUsage, TestCase, TestCaseKind};
 
 static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
 static BASELINE_BYTECODE: LazyLock<Bytecode> = LazyLock::new(|| Bytecode::new_legacy([0u8].into()));
 
 pub struct TestRunResult {
-    opcode: OpCode,
+    name: OpCodeOrPrecompile,
 
     kind: TestCaseKind,
     repetition: usize,
@@ -24,16 +24,16 @@ pub struct TestRunResult {
 }
 
 #[derive(Serialize)]
-pub struct ConstantSimpleCaseResult {
-    opcode: &'static str,
+pub struct ConstantSimpleCaseResult<'a> {
+    name: &'a str,
     repetition: usize,
     baseline_instruction_count: u64,
     exec_instruction_count: u64,
 }
 
 #[derive(Serialize)]
-pub struct ConstantMixedCaseResult {
-    opcode: &'static str,
+pub struct ConstantMixedCaseResult<'a> {
+    name: &'a str,
     repetition: usize,
     baseline_instruction_count: u64,
     exec_instruction_count: u64,
@@ -41,8 +41,8 @@ pub struct ConstantMixedCaseResult {
 }
 
 #[derive(Serialize)]
-pub struct DynamicSimpleCaseResult {
-    opcode: &'static str,
+pub struct DynamicSimpleCaseResult<'a> {
+    name: &'a str,
     repetition: usize,
     input_size: usize,
     baseline_instruction_count: u64,
@@ -50,8 +50,8 @@ pub struct DynamicSimpleCaseResult {
 }
 
 #[derive(Serialize)]
-pub struct DynamicMixedCaseResult {
-    opcode: &'static str,
+pub struct DynamicMixedCaseResult<'a> {
+    name: &'a str,
     repetition: usize,
     input_size: usize,
     baseline_instruction_count: u64,
@@ -59,7 +59,7 @@ pub struct DynamicMixedCaseResult {
     instruction_count_consumes_by_other_estimated: f64,
 }
 
-pub fn run_test(opcode: OpCode, mut tc: TestCase) -> TestRunResult {
+pub fn run_test(name: OpCodeOrPrecompile, mut tc: TestCase) -> TestRunResult {
     let kind = tc.kind();
     let repetition = tc.repetition();
     let input_size = tc.input_size();
@@ -91,7 +91,7 @@ pub fn run_test(opcode: OpCode, mut tc: TestCase) -> TestRunResult {
     let opcodes_usage = tc.count_opcodes();
 
     TestRunResult {
-        opcode,
+        name,
         kind,
         repetition,
         input_size,
@@ -110,7 +110,7 @@ impl TestRunResult {
         self.sanity_check_simple();
 
         ConstantSimpleCaseResult {
-            opcode: self.opcode.as_str(),
+            name: self.name.as_str(),
             repetition: self.repetition,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
@@ -126,7 +126,7 @@ impl TestRunResult {
             self.count_instruction_count_consumes_by_other_estimated();
 
         ConstantMixedCaseResult {
-            opcode: self.opcode.as_str(),
+            name: self.name.as_str(),
             repetition: self.repetition,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
             exec_instruction_count: self.exec_report.total_instruction_count(),
@@ -140,7 +140,7 @@ impl TestRunResult {
         self.sanity_check_simple();
 
         DynamicSimpleCaseResult {
-            opcode: self.opcode.as_str(),
+            name: self.name.as_str(),
             repetition: self.repetition,
             input_size: self.input_size,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
@@ -157,7 +157,7 @@ impl TestRunResult {
             self.count_instruction_count_consumes_by_other_estimated();
 
         DynamicMixedCaseResult {
-            opcode: self.opcode.as_str(),
+            name: self.name.as_str(),
             repetition: self.repetition,
             input_size: self.input_size,
             baseline_instruction_count: self.baseline_report.total_instruction_count(),
@@ -169,7 +169,7 @@ impl TestRunResult {
     fn count_instruction_count_consumes_by_other_estimated(&self) -> f64 {
         self.opcodes_usage
             .iter()
-            .filter(|(op, _)| *op != self.opcode && *op != OpCode::STOP)
+            .filter(|(op, _)| !self.name.matches(op) && *op != OpCode::STOP)
             .filter_map(|(op, repetition)| {
                 OPCODE_CYCLE_LUT
                     .get(&op)
@@ -185,10 +185,12 @@ impl TestRunResult {
             "STOP should be used exactly once in a case",
         );
         assert_eq!(
-            self.opcodes_usage.get(self.opcode).unwrap_or_default(),
+            self.opcodes_usage
+                .get(self.name.as_opcode())
+                .unwrap_or_default(),
             self.repetition,
             "Opcode usage mismatch for {}",
-            self.opcode,
+            self.name.as_str(),
         );
     }
 
@@ -196,11 +198,10 @@ impl TestRunResult {
         assert!(
             self.opcodes_usage
                 .iter()
-                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
+                .filter(|(op, _)| { !self.name.matches(op) && *op != OpCode::STOP })
                 .next()
                 .is_none(),
-            "simple case should only use the opcode {}",
-            self.opcode
+            "simple case should only use desired the opcode",
         );
     }
 
@@ -208,13 +209,15 @@ impl TestRunResult {
         assert!(
             self.opcodes_usage
                 .iter()
-                .filter(|(op, _)| { *op != self.opcode && *op != OpCode::STOP })
+                .filter(|(op, _)| { !self.name.matches(op) && *op != OpCode::STOP })
                 .all(|(op, _)| OPCODE_CYCLE_LUT.contains_key(&op)),
             "found opcode not in constant lut: {:?}",
             self.opcodes_usage
                 .iter()
                 .filter(|(op, _)| {
-                    *op != self.opcode && *op != OpCode::STOP && !OPCODE_CYCLE_LUT.contains_key(&op)
+                    !self.name.matches(op)
+                        && *op != OpCode::STOP
+                        && !OPCODE_CYCLE_LUT.contains_key(&op)
                 })
                 .collect_vec()
         );

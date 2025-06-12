@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
-    ops::Range,
+    ops::{Deref, Range},
     sync::{Arc, LazyLock},
 };
 
@@ -78,12 +78,18 @@ pub static OPCODE_TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>>
         map
     });
 
-pub static PRECOMPILE_TEST_VECTORS: LazyLock<BTreeMap<Address, Arc<TestCaseBuilder>>> =
+pub static PRECOMPILE_TEST_VECTORS: LazyLock<BTreeMap<Arc<str>, Arc<TestCaseBuilder>>> =
     LazyLock::new(|| {
         let mut map = BTreeMap::new();
         filler::precompile::fill(&mut map);
         map
     });
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum OpCodeOrPrecompile {
+    OpCode(OpCode),
+    Precompile(Arc<str>),
+}
 
 #[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash, ValueEnum)]
 pub enum TestCaseKind {
@@ -145,7 +151,34 @@ impl CycleModel {
     }
 }
 
+impl OpCodeOrPrecompile {
+    pub fn as_str(&self) -> &str {
+        match self {
+            OpCodeOrPrecompile::OpCode(op) => op.as_str(),
+            OpCodeOrPrecompile::Precompile(name) => name.deref(),
+        }
+    }
+
+    pub fn matches(&self, op_code: &OpCode) -> bool {
+        match self {
+            OpCodeOrPrecompile::OpCode(op) => op == op_code,
+            OpCodeOrPrecompile::Precompile(_) => false,
+        }
+    }
+
+    pub fn as_opcode(&self) -> OpCode {
+        match self {
+            OpCodeOrPrecompile::OpCode(op) => *op,
+            OpCodeOrPrecompile::Precompile(_) => OpCode::STATICCALL,
+        }
+    }
+}
+
 impl TestCaseBuilder {
+    pub fn description(&self) -> &str {
+        self.description.as_ref()
+    }
+
     pub fn kind(&self) -> TestCaseKind {
         self.kind
     }

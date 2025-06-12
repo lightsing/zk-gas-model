@@ -1,14 +1,16 @@
 use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
-use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
 use std::{
     path::PathBuf,
-    sync::{LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex},
 };
-use test_vector::{OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, TestCaseKind};
+use test_vector::{
+    OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, OpCodeOrPrecompile, PRECOMPILE_TEST_VECTORS,
+    TestCaseBuilder, TestCaseKind,
+};
 
 const GUEST_ELF: &[u8] = include_bytes!("../elf/evm-guest");
 
@@ -17,6 +19,8 @@ mod runner;
 #[derive(Parser)]
 struct Args {
     kind: TestCaseKind,
+    #[clap(long)]
+    precompile: bool,
     #[clap(long, default_value = "results.csv")]
     out: PathBuf,
     #[clap(long, default_value_t = 42)]
@@ -39,12 +43,45 @@ fn main() {
 
     let Args {
         kind,
+        precompile,
         out,
         seed,
         repeat,
         no_cache,
     } = Args::parse();
 
+    if precompile {
+        run_inner(
+            out,
+            seed,
+            repeat,
+            PRECOMPILE_TEST_VECTORS
+                .iter()
+                .map(|(name, tc)| (OpCodeOrPrecompile::Precompile(name.clone()), tc.clone())),
+        );
+    } else {
+        run_inner(
+            out,
+            seed,
+            repeat,
+            OPCODE_TEST_VECTORS
+                .iter()
+                .filter(|(op, tc)| {
+                    if no_cache {
+                        tc.kind() == kind
+                    } else {
+                        tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+                    }
+                })
+                .map(|(op, tc)| (OpCodeOrPrecompile::OpCode(*op), tc.clone())),
+        );
+    }
+}
+
+fn run_inner<C>(out: PathBuf, seed: u64, repeat: usize, cases: C)
+where
+    C: IntoIterator<Item = (OpCodeOrPrecompile, Arc<TestCaseBuilder>)> + Send + Sync + Clone,
+{
     let writer = Mutex::new(csv::Writer::from_path(out).unwrap());
     let seeds = Xoshiro256Plus::seed_from_u64(seed)
         .random_iter()
@@ -52,46 +89,40 @@ fn main() {
         .collect::<Vec<u64>>();
 
     let m = MultiProgress::new();
-    OPCODE_TEST_VECTORS
-        .iter()
-        .filter(|(op, tc)| {
-            if no_cache {
-                tc.kind() == kind
-            } else {
-                tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
-            }
-        })
-        .cartesian_product(seeds.iter().enumerate())
-        .par_bridge()
-        .panic_fuse()
-        .for_each(|((op, builder), (idx, seed))| {
-            let len = builder.testcases_len();
-            let tcs = builder.build_all(Some(*seed));
-            let pb = m.add(
-                ProgressBar::new(len as u64)
-                    .with_prefix(format!("{}#{:<03}", op.as_str(), idx))
-                    // .with_finish(ProgressFinish::Abandon)
-                    .with_style(PROGRESS_STYLE.clone()),
-            );
 
-            for tc in tcs.into_iter().progress_with(pb) {
-                let result = runner::run_test(*op, tc);
-                let mut writer = writer.lock().unwrap();
-                match kind {
-                    TestCaseKind::ConstantSimple => {
-                        writer.serialize(result.to_constant_simple_case_result())
+    seeds
+        .into_par_iter()
+        .enumerate()
+        .panic_fuse()
+        .for_each(move |(idx, seed)| {
+            for (name, builder) in cases.clone() {
+                let len = builder.testcases_len();
+                let tcs = builder.build_all(Some(seed));
+                let pb = m.add(
+                    ProgressBar::new(len as u64)
+                        .with_prefix(format!("{}#{:<03}", builder.description(), idx))
+                        .with_style(PROGRESS_STYLE.clone()),
+                );
+
+                for tc in tcs.into_iter().progress_with(pb) {
+                    let result = runner::run_test(name.clone(), tc);
+                    let mut writer = writer.lock().unwrap();
+                    match builder.kind() {
+                        TestCaseKind::ConstantSimple => {
+                            writer.serialize(result.to_constant_simple_case_result())
+                        }
+                        TestCaseKind::ConstantMixed => {
+                            writer.serialize(result.to_constant_mixed_case_result())
+                        }
+                        TestCaseKind::DynamicSimple => {
+                            writer.serialize(result.to_dynamic_simple_case_result())
+                        }
+                        TestCaseKind::DynamicMixed => {
+                            writer.serialize(result.to_dynamic_mixed_case_result())
+                        }
                     }
-                    TestCaseKind::ConstantMixed => {
-                        writer.serialize(result.to_constant_mixed_case_result())
-                    }
-                    TestCaseKind::DynamicSimple => {
-                        writer.serialize(result.to_dynamic_simple_case_result())
-                    }
-                    TestCaseKind::DynamicMixed => {
-                        writer.serialize(result.to_dynamic_mixed_case_result())
-                    }
+                    .unwrap();
                 }
-                .unwrap();
             }
         });
 }

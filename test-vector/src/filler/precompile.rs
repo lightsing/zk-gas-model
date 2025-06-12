@@ -15,21 +15,22 @@ use std::{
 
 const PRECOMPILE_CALL_MAX_GAS: u64 = u32::MAX as u64;
 
-pub(crate) fn fill(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
+pub(crate) fn fill(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     fill_ec_add(map);
     fill_ec_mul(map);
     fill_ec_pair(map);
 }
 
-fn fill_ec_add(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
+fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
+    let name: Arc<str> = Arc::from("ecAdd");
     let addr = u64_to_address(0x06);
 
     map.insert(
-        addr,
+        name.clone(),
         Arc::new(TestCaseBuilder {
-            description: Arc::from("ecAdd"),
+            description: name,
             kind: TestCaseKind::ConstantMixed,
             support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
             memory_builder: Box::new(|memory, params| {
@@ -59,15 +60,16 @@ fn fill_ec_add(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
     );
 }
 
-fn fill_ec_mul(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
+fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
+    let name: Arc<str> = Arc::from("ecMul");
     let addr = u64_to_address(0x07);
 
     map.insert(
-        addr,
+        name.clone(),
         Arc::new(TestCaseBuilder {
-            description: Arc::from("ecMul"),
+            description: name,
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
             support_input_size: (0..254).collect(), // how many 1 in the scalar bits
@@ -105,18 +107,19 @@ fn fill_ec_mul(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
     );
 }
 
-fn fill_ec_pair(map: &mut BTreeMap<Address, Arc<TestCaseBuilder>>) {
+fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
+    let name: Arc<str> = Arc::from("ecPairing");
     let addr = u64_to_address(0x08);
 
     const BLOCK_GAS_TARGET: u64 = 20_000_000;
     const MAX_PAIR_LEN: u64 = (BLOCK_GAS_TARGET - PAIR_BASE_COST) / PAIR_PER_POINT_COST;
 
     map.insert(
-        addr,
+        name.clone(),
         Arc::new(TestCaseBuilder {
-            description: Arc::from("ecPairing"),
+            description: name,
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
             support_input_size: (2..MAX_PAIR_LEN as usize).collect(),
