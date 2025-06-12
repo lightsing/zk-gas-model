@@ -145,6 +145,11 @@
     "kind": "linear",
     "slope": 358.1484381164569
   },
+  "KECCAK256": {
+    "intercept": 11247.794267957217,
+    "kind": "linear",
+    "slope": 122.53135145551892
+  },
   "RETURNDATACOPY": {
     "_comments": "need size <= 32KiB",
     "intercept": 225.92614502875318,
