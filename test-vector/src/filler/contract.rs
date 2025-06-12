@@ -21,18 +21,16 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
             op,
             Arc::new(TestCaseBuilder {
                 description: Arc::from(op.as_str()),
-                kind: TestCaseKind::DynamicMixed,
+                kind: TestCaseKind::ConstantMixed,
                 support_repetition: 1..1024 / op.inputs() as usize,
-                support_input_size: (0..MAX_CALLDATA_SIZE_LOG2).map(|e| 2usize.pow(e)).collect(),
-                memory_builder: ensure_memory_input_size_builder(),
                 stack_builder: Box::new(move |stack, params| {
                     let mut rng = params.rng();
                     let addresses = random_addresses(&mut rng, params.repetition);
                     for address in addresses {
                         assert!(stack.push(U256::ZERO)); // retSize
                         assert!(stack.push(U256::ZERO)); // retOffset
-                        assert!(stack.push(U256::from(params.input_size))); // argsSize
-                        assert!(stack.push(U256::from(params.input_size))); // argsOffset
+                        assert!(stack.push(U256::ZERO)); // argsSize
+                        assert!(stack.push(U256::ZERO)); // argsOffset
                         if matches!(op, OpCode::CALL | OpCode::CALLCODE) {
                             assert!(stack.push(U256::ZERO)); // value
                         }
