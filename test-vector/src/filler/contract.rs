@@ -1,9 +1,6 @@
 use crate::{
     TestCaseBuilder, TestCaseKind,
-    filler::{
-        MAX_CALLDATA_SIZE_LOG2, default_bytecode_with_pop_builder,
-        ensure_memory_input_size_builder, random_accounts, random_addresses,
-    },
+    filler::{default_bytecode_with_pop_builder, random_accounts, random_addresses},
 };
 use evm_guest::*;
 use std::{collections::BTreeMap, sync::Arc};
