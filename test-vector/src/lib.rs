@@ -85,7 +85,7 @@ pub static PRECOMPILE_TEST_VECTORS: LazyLock<BTreeMap<Address, Arc<TestCaseBuild
         map
     });
 
-#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Hash, ValueEnum)]
 pub enum TestCaseKind {
     /// The case only measures desired opcodes and has fixed input sizes.
     #[default]
@@ -331,6 +331,15 @@ mod tests {
         for opcode in unimplemented_opcodes.filter(|op| !OPCODES_EXCLUDED.contains(op)) {
             println!("{}", opcode.as_str());
         }
+    }
+
+    #[test]
+    fn list_opcodes() {
+        let map = OPCODE_TEST_VECTORS
+            .iter()
+            .map(|(op, builder)| (builder.kind, op.as_str()))
+            .into_group_map();
+        println!("{:#?}", map);
     }
 
     #[test]

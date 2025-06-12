@@ -2,8 +2,9 @@ use crate::{
     TestCaseBuilder, TestCaseKind,
     filler::{
         MAX_BYTECODE_SIZE_LOG2, MAX_CALLDATA_SIZE_LOG2, MAX_KECCAK_SIZE_LOG2,
-        MAX_RETURNDATA_SIZE_LOG2, default_bytecode_builder, default_stack_builder,
-        ensure_memory_input_size_builder, random_bytes_random_size_builder, random_stack_io,
+        MAX_RETURNDATA_SIZE_LOG2, default_bytecode_builder, default_bytecode_with_pop_builder,
+        default_stack_builder, ensure_memory_input_size_builder, random_bytes_random_size_builder,
+        random_stack_io,
     },
 };
 use evm_guest::*;
@@ -90,12 +91,7 @@ fn fill_call(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                         _ => unreachable!(),
                     },
                     bytecode_builder: match op {
-                        OpCode::CALLDATALOAD => Box::new(|params| {
-                            Bytecode::new_legacy(Bytes::from(
-                                [OpCode::CALLDATALOAD.get(), OpCode::POP.get()]
-                                    .repeat(params.repetition),
-                            ))
-                        }),
+                        OpCode::CALLDATALOAD => default_bytecode_with_pop_builder(op),
                         OpCode::CALLDATASIZE => default_bytecode_builder(op),
                         _ => unreachable!(),
                     },

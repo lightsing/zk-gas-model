@@ -1,6 +1,6 @@
 use crate::{
     TestCaseBuilder, TestCaseKind,
-    filler::{BuilderParams, default_bytecode_builder},
+    filler::{BuilderParams, default_bytecode_builder, default_bytecode_with_pop_builder},
 };
 use evm_guest::*;
 use rand::{Rng, RngCore};
@@ -30,11 +30,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     assert!(stack.push(U256::from(rng.random_range(0..size))));
                 }
             }),
-            bytecode_builder: Box::new(|params| {
-                Bytecode::new_legacy(Bytes::from(
-                    [OpCode::MLOAD.get(), OpCode::POP.get()].repeat(params.repetition),
-                ))
-            }),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::MLOAD),
             ..Default::default()
         }),
     );

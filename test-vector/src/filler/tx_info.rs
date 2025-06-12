@@ -1,4 +1,7 @@
-use crate::{TestCaseBuilder, TestCaseKind, filler::random_stack_io};
+use crate::{
+    TestCaseBuilder, TestCaseKind,
+    filler::{default_bytecode_with_pop_builder, random_stack_io},
+};
 use evm_guest::{context::TransactionType, *};
 use rand::Rng;
 use std::{collections::BTreeMap, sync::Arc};
@@ -23,11 +26,7 @@ pub(super) fn fill(map: &mut BTreeMap<OpCode, Arc<TestCaseBuilder>>) {
                     assert!(stack.push(U256::from(rng.random_range(0..MAX_BLOBS))));
                 }
             }),
-            bytecode_builder: Box::new(|params| {
-                Bytecode::new_legacy(Bytes::from(
-                    [OpCode::BLOBHASH.get(), OpCode::POP.get()].repeat(params.repetition),
-                ))
-            }),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::BLOBHASH),
             context_builder: Box::new(|context_builder, _params| {
                 context_builder.tx.tx_type = TransactionType::Eip4844 as _;
                 context_builder.tx.blob_hashes = [B256::ZERO].repeat(MAX_BLOBS);
