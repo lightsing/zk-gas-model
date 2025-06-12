@@ -15,7 +15,7 @@ except IndexError:
     out = "lut.json"
 
 df = process_simple(pd.read_csv(file))
-df_grouped = df.groupby("opcode", group_keys=True)
+df_grouped = df.groupby("name", group_keys=True)
 
 agged = df_grouped["instruction_delta_per_op"].agg(agg_mode)
 print(agged)

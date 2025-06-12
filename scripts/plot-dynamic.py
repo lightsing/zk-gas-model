@@ -16,7 +16,7 @@ df = df[df["input_size"] <= 32768]
 
 g = sns.FacetGrid(
     df, 
-    col="opcode", 
+    col="name",
     col_wrap=4, 
     height=3, 
     sharex=False, 

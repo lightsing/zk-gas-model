@@ -13,7 +13,7 @@ def clip_p5_p95(df: pd.DataFrame) -> pd.DataFrame:
         p5 = group["instruction_delta_per_op"].quantile(0.05)
         p95 = group["instruction_delta_per_op"].quantile(0.95)
         return group[group["instruction_delta_per_op"].between(p5,p95)]
-    df_grouped = df.groupby("opcode", group_keys=True)
+    df_grouped = df.groupby("name", group_keys=True)
     df_clipped = df_grouped.apply(filter_p5_p95, include_groups=False)
     df_clipped = df_clipped.reset_index()
     return df_clipped
