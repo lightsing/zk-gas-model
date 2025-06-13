@@ -169,7 +169,7 @@ impl OpCodeOrPrecompile {
     pub fn as_opcode(&self) -> OpCode {
         match self {
             OpCodeOrPrecompile::OpCode(op) => *op,
-            OpCodeOrPrecompile::Precompile(_) => OpCode::STATICCALL,
+            OpCodeOrPrecompile::Precompile(_) => OpCode::DELEGATECALL,
         }
     }
 }
