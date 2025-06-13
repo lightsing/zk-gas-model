@@ -5,8 +5,11 @@ use evm_guest::*;
 
 pub fn main() {
     let spec_id: SpecId = sp1_zkvm::io::read();
-    let interpreter: InterpreterT = sp1_zkvm::io::read();
+    let mut interpreter: InterpreterT = sp1_zkvm::io::read();
     let context_builder: ContextBuilder = sp1_zkvm::io::read();
+    // deserialize won't keep Rc
+    interpreter.memory =
+        SharedMemory::new_with_buffer(context_builder.shared_memory_buffer.clone());
     let context = context_builder.build(spec_id);
 
     let mut evm = EvmT::new(

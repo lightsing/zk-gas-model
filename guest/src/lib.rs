@@ -1,7 +1,7 @@
 use revm_context::{BlockEnv, CfgEnv, Evm, Journal, LocalContext, TxEnv, result::EVMError};
 use revm_handler::{EthFrame, MainnetHandler};
 use serde::{Deserialize, Serialize};
-use std::{convert::Infallible, marker::PhantomData};
+use std::{cell::RefCell, convert::Infallible, marker::PhantomData, rc::Rc};
 
 pub use revm_bytecode::{Bytecode, OpCode};
 pub use revm_database::{Cache, CacheDB, DbAccount, EmptyDB};
@@ -51,10 +51,16 @@ pub struct ContextBuilder {
     pub cfg: CfgEnv,
     pub db: Cache,
     pub transient_storage: TransientStorage,
+    pub shared_memory_buffer: Rc<RefCell<Vec<u8>>>,
 }
 
 impl ContextBuilder {
-    pub fn new(caller: Address, callee: Address, bytecode: Bytecode) -> Self {
+    pub fn new(
+        caller: Address,
+        callee: Address,
+        bytecode: Bytecode,
+        shared_memory_buffer: Rc<RefCell<Vec<u8>>>,
+    ) -> Self {
         let mut db = Cache::default();
         db.accounts
             .insert(caller, AccountInfo::from_balance(U256::MAX).into());
@@ -71,6 +77,7 @@ impl ContextBuilder {
             cfg: CfgEnv::default(),
             transient_storage: TransientStorage::default(),
             db,
+            shared_memory_buffer,
         }
     }
 
@@ -90,6 +97,7 @@ impl ContextBuilder {
                 .map(|(addr, acc)| (*addr, acc.info.clone().into())),
         );
         ctx.journaled_state.transient_storage = self.transient_storage.clone();
+        ctx.local.shared_memory_buffer = self.shared_memory_buffer.clone();
         ctx
     }
 }

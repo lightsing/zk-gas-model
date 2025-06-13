@@ -4,9 +4,11 @@ use evm_guest::*;
 use itertools::Itertools;
 use serde::Deserialize;
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt::{Debug, Display},
     ops::{Deref, Range},
+    rc::Rc,
     sync::{Arc, LazyLock},
 };
 
@@ -199,7 +201,8 @@ impl TestCaseBuilder {
                     random_seed,
                 };
 
-                let mut shared_memory = SharedMemory::new();
+                let shared_memory_buffer = Rc::new(RefCell::new(Vec::new()));
+                let mut shared_memory = SharedMemory::new_with_buffer(shared_memory_buffer.clone());
                 (self.memory_builder)(&mut shared_memory, params);
                 let mut stack = Stack::new();
                 (self.stack_builder)(&mut stack, params);
@@ -219,8 +222,12 @@ impl TestCaseBuilder {
                     ..Default::default()
                 };
 
-                let mut context_builder =
-                    ContextBuilder::new(self.caller_address, self.target_address, bytecode.clone());
+                let mut context_builder = ContextBuilder::new(
+                    self.caller_address,
+                    self.target_address,
+                    bytecode.clone(),
+                    shared_memory_buffer,
+                );
                 (self.context_builder)(&mut context_builder, params);
 
                 let mut interpreter = InterpreterT::new(
