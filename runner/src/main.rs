@@ -74,11 +74,10 @@ fn main() {
                     // } else {
                     //     tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
                     // }
-                    **op == OpCode::POP
-                    // matches!(
-                    //     **op,
-                    //     OpCode::CALL | OpCode::CALLCODE | OpCode::STATICCALL | OpCode::DELEGATECALL
-                    // )
+                    matches!(
+                        **op,
+                        OpCode::CALL | OpCode::CALLCODE | OpCode::STATICCALL | OpCode::DELEGATECALL
+                    )
                 })
                 .map(|(op, tc)| (OpCodeOrPrecompile::OpCode(*op), tc.clone())),
         );
