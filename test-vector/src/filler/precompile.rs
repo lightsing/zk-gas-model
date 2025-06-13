@@ -32,7 +32,7 @@ fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
         Arc::new(TestCaseBuilder {
             description: name,
             kind: TestCaseKind::ConstantMixed,
-            support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
+            support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
 
@@ -54,7 +54,7 @@ fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                 }
             }),
             stack_builder: call_stack_builder(addr, ADD_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
-            bytecode_builder: default_bytecode_with_pop_builder(OpCode::STATICCALL),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
     );
@@ -72,7 +72,7 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
             description: name,
             // analysis found that cycles are almost irrelevant to bits
             kind: TestCaseKind::ConstantMixed,
-            support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
+            support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
 
@@ -102,7 +102,7 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                 }
             }),
             stack_builder: call_stack_builder(addr, MUL_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
-            bytecode_builder: default_bytecode_with_pop_builder(OpCode::STATICCALL),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
     );
@@ -122,7 +122,7 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
         Arc::new(TestCaseBuilder {
             description: name,
             kind: TestCaseKind::DynamicMixed,
-            support_repetition: 1..1024 / OpCode::STATICCALL.inputs() as usize,
+            support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
             support_input_size: (2..MAX_PAIR_LEN as usize).collect(),
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
@@ -186,7 +186,7 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     assert!(stack.push(U256::from(PRECOMPILE_CALL_MAX_GAS))); // gas
                 }
             }),
-            bytecode_builder: default_bytecode_with_pop_builder(OpCode::STATICCALL),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
     );
@@ -313,7 +313,7 @@ mod tests {
             for tc in builder.build_all(Some(42)) {
                 let repetition = tc.repetition;
                 let opcodes = tc.count_opcodes();
-                assert_eq!(opcodes.get(OpCode::STATICCALL), Some(repetition));
+                assert_eq!(opcodes.get(OpCode::DELEGATECALL), Some(repetition));
             }
         }
     }
