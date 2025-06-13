@@ -23,7 +23,7 @@ mod runner;
 #[derive(Parser)]
 struct Args {
     kind: Option<TestCaseKind>,
-    #[clap(long)]
+    #[clap(long, value_delimiter = ',')]
     opcodes: Vec<String>,
     #[clap(long)]
     precompile: bool,
