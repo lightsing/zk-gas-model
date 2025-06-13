@@ -83,7 +83,7 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
 
                 // scalar = 2^input_size - 1
                 // we won't exceed the 254 bits of Fr
-                let bits: u32 = rng.random_range((0..254));
+                let bits: u32 = rng.random_range(0..254);
                 let scalar = U256::from(2u8)
                     .pow(U256::from(bits))
                     .sub(U256::ONE)
@@ -114,7 +114,7 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     let name: Arc<str> = Arc::from("ecPairing");
     let addr = u64_to_address(0x08);
 
-    const BLOCK_GAS_TARGET: u64 = 20_000_000;
+    // const BLOCK_GAS_TARGET: u64 = 20_000_000;
     const MAX_PAIR_LEN: u64 = 10;
 
     map.insert(
