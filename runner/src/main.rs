@@ -170,6 +170,6 @@ where
                     tasks_pb.inc(1);
                 }
             }
-            pb.finish();
+            pb.finish_and_clear();
         });
 }
