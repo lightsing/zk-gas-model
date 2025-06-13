@@ -69,15 +69,11 @@ fn main() {
             OPCODE_TEST_VECTORS
                 .iter()
                 .filter(|(op, tc)| {
-                    // if no_cache {
-                    //     tc.kind() == kind
-                    // } else {
-                    //     tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
-                    // }
-                    matches!(
-                        **op,
-                        OpCode::CALL | OpCode::CALLCODE | OpCode::STATICCALL | OpCode::DELEGATECALL
-                    )
+                    if no_cache {
+                        tc.kind() == kind
+                    } else {
+                        tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+                    }
                 })
                 .map(|(op, tc)| (OpCodeOrPrecompile::OpCode(*op), tc.clone())),
         );
