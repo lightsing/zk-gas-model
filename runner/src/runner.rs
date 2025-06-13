@@ -8,7 +8,6 @@ use std::{mem, sync::LazyLock};
 use test_vector::{OPCODE_CYCLE_LUT, OpCodeOrPrecompile, OpcodeUsage, TestCase, TestCaseKind};
 
 static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
-static BASELINE_BYTECODE: LazyLock<Bytecode> = LazyLock::new(|| Bytecode::new_legacy([0u8].into()));
 
 pub struct TestRunResult {
     name: OpCodeOrPrecompile,
@@ -64,9 +63,10 @@ pub fn run_test(name: OpCodeOrPrecompile, mut tc: TestCase) -> TestRunResult {
     let repetition = tc.repetition();
     let input_size = tc.input_size();
 
+    let bytecode_len = tc.interpreter().bytecode.len();
     let mut target_bytecode = mem::replace(
         &mut tc.interpreter_mut().bytecode,
-        ExtBytecode::new(BASELINE_BYTECODE.clone()),
+        ExtBytecode::new(Bytecode::new_legacy([0u8].repeat(bytecode_len).into())),
     );
 
     let (_, baseline_report) = {
