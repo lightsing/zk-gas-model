@@ -1,10 +1,12 @@
 use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
 use revm_bytecode::OpCode;
 use std::{
+    collections::BTreeSet,
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
 };
@@ -19,7 +21,9 @@ mod runner;
 
 #[derive(Parser)]
 struct Args {
-    kind: TestCaseKind,
+    kind: Option<TestCaseKind>,
+    #[clap(long)]
+    opcodes: Vec<String>,
     #[clap(long)]
     precompile: bool,
     #[clap(long, default_value = "results.csv")]
@@ -44,12 +48,25 @@ fn main() {
 
     let Args {
         kind,
+        opcodes,
         precompile,
         out,
         seed,
         repeat,
         no_cache,
     } = Args::parse();
+
+    let opcodes = opcodes
+        .into_iter()
+        .map(|s| OpCode::parse(s.as_str()).unwrap())
+        .collect::<BTreeSet<_>>();
+
+    if !opcodes.is_empty() {
+        eprintln!(
+            "Opcodes set, kind is ignored, running tests for: {}",
+            opcodes.iter().map(|op| op.as_str()).join(", ")
+        );
+    }
 
     if precompile {
         run_inner(
@@ -58,7 +75,7 @@ fn main() {
             repeat,
             PRECOMPILE_TEST_VECTORS
                 .iter()
-                .filter(|(_, tc)| tc.kind() == kind)
+                .filter(|(_, tc)| tc.kind() == kind.unwrap())
                 .map(|(name, tc)| (OpCodeOrPrecompile::Precompile(name.clone()), tc.clone())),
         );
     } else {
@@ -69,10 +86,15 @@ fn main() {
             OPCODE_TEST_VECTORS
                 .iter()
                 .filter(|(op, tc)| {
-                    if no_cache {
-                        tc.kind() == kind
+                    if opcodes.is_empty() {
+                        let kind = kind.unwrap();
+                        if no_cache {
+                            tc.kind() == kind
+                        } else {
+                            tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+                        }
                     } else {
-                        tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+                        opcodes.contains(op)
                     }
                 })
                 .map(|(op, tc)| (OpCodeOrPrecompile::OpCode(*op), tc.clone())),
