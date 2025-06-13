@@ -3,6 +3,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::prelude::*;
+use revm_bytecode::OpCode;
 use std::{
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
@@ -68,11 +69,16 @@ fn main() {
             OPCODE_TEST_VECTORS
                 .iter()
                 .filter(|(op, tc)| {
-                    if no_cache {
-                        tc.kind() == kind
-                    } else {
-                        tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
-                    }
+                    // if no_cache {
+                    //     tc.kind() == kind
+                    // } else {
+                    //     tc.kind() == kind && !OPCODE_CYCLE_LUT.contains_key(op)
+                    // }
+                    **op == OpCode::POP
+                    // matches!(
+                    //     **op,
+                    //     OpCode::CALL | OpCode::CALLCODE | OpCode::STATICCALL | OpCode::DELEGATECALL
+                    // )
                 })
                 .map(|(op, tc)| (OpCodeOrPrecompile::OpCode(*op), tc.clone())),
         );
