@@ -1,5 +1,5 @@
 use clap::Parser;
-use indicatif::{MultiProgress, ProgressBar, ProgressIterator, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
@@ -9,6 +9,7 @@ use std::{
     collections::BTreeSet,
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
+    time::Duration,
 };
 use test_vector::{
     OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, OpCodeOrPrecompile, PRECOMPILE_TEST_VECTORS,
@@ -38,7 +39,7 @@ struct Args {
 
 static PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     ProgressStyle::with_template(
-    "{prefix:<14} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {bar:40} {pos:>6}/{len:6}",
+    "{prefix} {msg:<14} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {wide_bar} {pos:>6}/{len:6}",
 )
     .unwrap()
 });
@@ -112,23 +113,42 @@ where
         .take(repeat)
         .collect::<Vec<u64>>();
 
+    let cases_length = cases
+        .clone()
+        .into_iter()
+        .map(|(_, builder)| builder.testcases_len())
+        .sum::<usize>();
+
     let m = MultiProgress::new();
+
+    let tasks_pb = m.add(
+        ProgressBar::new((repeat * cases_length) as u64)
+            .with_prefix("ALL")
+            .with_style(
+                ProgressStyle::with_template(
+                    "{prefix} {elapsed} {percent_precise:>7}% {spinner} {wide_bar} ",
+                )
+                .unwrap(),
+            ),
+    );
+    tasks_pb.enable_steady_tick(Duration::from_millis(200));
 
     seeds
         .into_par_iter()
         .enumerate()
         .panic_fuse()
         .for_each(move |(idx, seed)| {
-            for (name, builder) in cases.clone() {
-                let len = builder.testcases_len();
-                let tcs = builder.build_all(Some(seed));
-                let pb = m.add(
-                    ProgressBar::new(len as u64)
-                        .with_prefix(format!("{}#{:<03}", builder.description(), idx))
-                        .with_style(PROGRESS_STYLE.clone()),
-                );
+            let pb = m.add(
+                ProgressBar::new(cases_length as u64)
+                    .with_prefix(format!("#{idx:<03}"))
+                    .with_style(PROGRESS_STYLE.clone()),
+            );
 
-                for tc in tcs.into_iter().progress_with(pb) {
+            for (name, builder) in cases.clone() {
+                let tcs = builder.build_all(Some(seed));
+                pb.set_message(builder.description().to_string());
+
+                for tc in tcs.into_iter() {
                     let result = runner::run_test(name.clone(), tc);
                     let mut writer = writer.lock().unwrap();
                     match builder.kind() {
@@ -146,7 +166,10 @@ where
                         }
                     }
                     .unwrap();
+                    pb.inc(1);
+                    tasks_pb.inc(1);
                 }
             }
+            pb.finish();
         });
 }
