@@ -16,45 +16,103 @@ use std::{
 const PRECOMPILE_CALL_MAX_GAS: u64 = u32::MAX as u64;
 
 pub(crate) fn fill(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
-    // fill_modexp_dynamic_e(map);
+    fill_modexp_dynamic_bm(map);
+    fill_modexp_dynamic_e(map);
     fill_ec_add(map);
     fill_ec_mul(map);
     fill_ec_pair(map);
 }
 
-// fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
-//     use modexp::*;
-//
-//     let name: Arc<str> = Arc::from("modexp-dynamic-e");
-//
-//     map.insert(
-//         name.clone(),
-//         Arc::new(TestCaseBuilder {
-//             description: name,
-//             kind: TestCaseKind::DynamicMixed,
-//             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
-//             support_input_size: (0..=1024).collect(), // byte length of E
-//             memory_builder: Box::new(|memory, params| {
-//                 let mut rng = params.rng();
-//
-//                 run_modexp()
-//             }),
-//             stack_builder: Box::new(move |stack, params| {
-//                 let arg_size = params.input_size * PAIR_ELEMENT_LEN;
-//                 for i in 0..params.repetition {
-//                     assert!(stack.push(U256::ZERO)); // retSize
-//                     assert!(stack.push(U256::ZERO)); // retOffset
-//                     assert!(stack.push(U256::from(arg_size))); // argsSize
-//                     assert!(stack.push(U256::from(i * arg_size))); // argsOffset
-//                     assert!(stack.push(U256::from_be_slice(ADDR.as_slice()))); // address
-//                     assert!(stack.push(U256::from(PRECOMPILE_CALL_MAX_GAS))); // gas
-//                 }
-//             }),
-//             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
-//             ..Default::default()
-//         }),
-//     );
-// }
+fn fill_modexp_dynamic_bm(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+    use modexp::*;
+
+    let name: Arc<str> = Arc::from("modexp-dynamic-bm");
+
+    const E_SIZE: usize = 32; // length of B, M
+
+    let arg_size_fn = |bm_size| HEADER_LEN + bm_size * 2 + E_SIZE;
+
+    map.insert(
+        name.clone(),
+        Arc::new(TestCaseBuilder {
+            description: name,
+            kind: TestCaseKind::DynamicMixed,
+            support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
+            support_input_size: (0..=1024).collect(), // byte length of E
+            memory_builder: Box::new(move |memory, params| {
+                let mut rng = params.rng();
+
+                let arg_size = arg_size_fn(params.input_size);
+                let memory_size = params.repetition * arg_size;
+                memory.resize(memory_size);
+                let mut context_memory_mut = memory.context_memory_mut();
+                let mut buffer = context_memory_mut.as_mut();
+
+                for _ in 0..params.repetition {
+                    let b = (&mut rng)
+                        .random_iter::<u8>()
+                        .take(params.input_size)
+                        .collect_vec();
+                    let m = (&mut rng)
+                        .random_iter::<u8>()
+                        .take(params.input_size)
+                        .collect_vec();
+                    let e = rng.random::<[u8; E_SIZE]>();
+                    write_input(buffer, &b, &e, &m);
+                    run_modexp(&buffer[..arg_size], PRECOMPILE_CALL_MAX_GAS).unwrap();
+                    buffer = &mut buffer[arg_size..];
+                }
+            }),
+            stack_builder: call_stack_builder(ADDR, arg_size_fn, PRECOMPILE_CALL_MAX_GAS),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
+            ..Default::default()
+        }),
+    );
+}
+
+fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+    use modexp::*;
+
+    let name: Arc<str> = Arc::from("modexp-dynamic-e");
+
+    const B_M_LENGTH: usize = 32; // length of B, M
+
+    let arg_size_fn = |e_size| HEADER_LEN + B_M_LENGTH * 2 + e_size;
+
+    map.insert(
+        name.clone(),
+        Arc::new(TestCaseBuilder {
+            description: name,
+            kind: TestCaseKind::DynamicMixed,
+            support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
+            support_input_size: (0..=1024).collect(), // byte length of E
+            memory_builder: Box::new(move |memory, params| {
+                let mut rng = params.rng();
+
+                let arg_size = arg_size_fn(params.input_size);
+                let memory_size = params.repetition * arg_size;
+                memory.resize(memory_size);
+                let mut context_memory_mut = memory.context_memory_mut();
+                let mut buffer = context_memory_mut.as_mut();
+
+                for _ in 0..params.repetition {
+                    let b = rng.random::<[u8; B_M_LENGTH]>();
+                    let m = rng.random::<[u8; B_M_LENGTH]>();
+                    let e = (&mut rng)
+                        .random_iter::<u8>()
+                        .take(params.input_size)
+                        .collect_vec();
+                    write_input(buffer, &b, &e, &m);
+                    run_modexp(&buffer[..arg_size], PRECOMPILE_CALL_MAX_GAS).unwrap();
+                    buffer = &mut buffer[arg_size..];
+                }
+            }),
+            stack_builder: call_stack_builder(ADDR, arg_size_fn, PRECOMPILE_CALL_MAX_GAS),
+            bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
+            ..Default::default()
+        }),
+    );
+}
 
 fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
@@ -88,7 +146,7 @@ fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     buffer = &mut buffer[ADD_INPUT_LEN..];
                 }
             }),
-            stack_builder: call_stack_builder(addr, ADD_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
+            stack_builder: call_stack_builder(addr, |_| ADD_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
@@ -137,7 +195,7 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     buffer = &mut buffer[MUL_INPUT_LEN..];
                 }
             }),
-            stack_builder: call_stack_builder(addr, MUL_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
+            stack_builder: call_stack_builder(addr, |_| MUL_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
@@ -153,6 +211,8 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     // const BLOCK_GAS_TARGET: u64 = 20_000_000;
     const MAX_PAIR_LEN: u64 = 10;
 
+    let arg_size_fn = |input_size| PAIR_ELEMENT_LEN * input_size;
+
     map.insert(
         name.clone(),
         Arc::new(TestCaseBuilder {
@@ -160,10 +220,11 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
             support_input_size: (2..MAX_PAIR_LEN as usize).collect(),
-            memory_builder: Box::new(|memory, params| {
+            memory_builder: Box::new(move |memory, params| {
                 let mut rng = params.rng();
 
-                let memory_size = params.repetition * params.input_size * PAIR_ELEMENT_LEN;
+                let arg_size = arg_size_fn(params.input_size);
+                let memory_size = params.repetition * arg_size;
                 memory.resize(memory_size);
                 let mut context_memory_mut = memory.context_memory_mut();
                 let mut buffer = context_memory_mut.as_mut();
@@ -194,13 +255,10 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                         &mut buffer[PAIR_ELEMENT_LEN * (params.input_size - 1)..],
                         &last_p,
                     );
-                    write_g2(
-                        &mut buffer[PAIR_ELEMENT_LEN * params.input_size - G2_LEN..],
-                        &q,
-                    );
+                    write_g2(&mut buffer[arg_size - G2_LEN..], &q);
 
                     let result = run_pair(
-                        &buffer[..params.input_size * PAIR_ELEMENT_LEN],
+                        &buffer[..arg_size],
                         PAIR_PER_POINT_COST,
                         PAIR_BASE_COST,
                         PRECOMPILE_CALL_MAX_GAS,
@@ -208,44 +266,22 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     .unwrap();
                     assert_eq!(result.bytes[31], 1); // success
 
-                    buffer = &mut buffer[params.input_size * PAIR_ELEMENT_LEN..];
+                    buffer = &mut buffer[arg_size..];
                 }
             }),
-            stack_builder: Box::new(move |stack, params| {
-                let arg_size = params.input_size * PAIR_ELEMENT_LEN;
-                for i in 0..params.repetition {
-                    assert!(stack.push(U256::ZERO)); // retSize
-                    assert!(stack.push(U256::ZERO)); // retOffset
-                    assert!(stack.push(U256::from(arg_size))); // argsSize
-                    assert!(stack.push(U256::from(i * arg_size))); // argsOffset
-                    assert!(stack.push(U256::from_be_slice(addr.as_slice()))); // address
-                    assert!(stack.push(U256::from(PRECOMPILE_CALL_MAX_GAS))); // gas
-                }
-            }),
+            stack_builder: call_stack_builder(addr, arg_size_fn, PRECOMPILE_CALL_MAX_GAS),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
     );
 }
 
-fn call_stack_builder(addr: Address, arg_size: usize, gas: u64) -> StackBuilder {
-    Box::new(move |stack, params| {
-        for i in 0..params.repetition {
-            assert!(stack.push(U256::ZERO)); // retSize
-            assert!(stack.push(U256::ZERO)); // retOffset
-            assert!(stack.push(U256::from(arg_size))); // argsSize
-            assert!(stack.push(U256::from(i * arg_size))); // argsOffset
-            assert!(stack.push(U256::from_be_slice(addr.as_slice()))); // address
-            assert!(stack.push(U256::from(gas))); // gas
-        }
-    })
-}
-
 mod modexp {
     use evm_guest::*;
     use revm_precompile::u64_to_address;
 
-    pub use revm_precompile::modexp::run_inner as run_modexp;
+    use crate::filler::precompile::{write_slice, write_u256};
+    pub use revm_precompile::modexp::berlin_run as run_modexp;
 
     pub const ADDR: Address = u64_to_address(0x04);
     // The format of input is:
@@ -254,21 +290,29 @@ mod modexp {
     // to be taken up by the next value.
     pub const HEADER_LEN: usize = 3 * 32; // 3 lengths of 32 bytes each
 
-    // gas model
-    //
-    // B ** E % M
-    //
-    // max_length = max(Bsize, Msize)
-    // words = (max_length + 7) / 8
-    // multiplication_complexity = words**2
-    //
-    // iteration_count = 0
-    // if Esize <= 32 and exponent == 0: iteration_count = 0
-    // elif Esize <= 32: iteration_count = exponent.bit_length() - 1
-    // elif Esize > 32: iteration_count = (8 * (Esize - 32)) + ((exponent & (2**256 - 1)).bit_length() - 1)
-    // calculate_iteration_count = max(iteration_count, 1)
-    //
-    // gas = max(200, multiplication_complexity * calculate_iteration_count / 3)
+    pub fn write_input<'a>(
+        mut buffer: &'a mut [u8],
+        base: &[u8],
+        exponent: &[u8],
+        modulus: &[u8],
+    ) -> &'a mut [u8] {
+        assert!(buffer.len() >= HEADER_LEN + base.len() + exponent.len() + modulus.len());
+
+        // Write lengths
+        let lengths = [
+            U256::from(base.len()),
+            U256::from(exponent.len()),
+            U256::from(modulus.len()),
+        ];
+        for length in lengths.into_iter() {
+            buffer = write_u256(buffer, length);
+        }
+
+        // Write base, exponent, and modulus
+        buffer = write_slice(buffer, base);
+        buffer = write_slice(buffer, exponent);
+        write_slice(buffer, modulus)
+    }
 }
 
 mod bn128 {
@@ -279,6 +323,7 @@ mod bn128 {
 
     pub use ark_bn254::{Fr, G1Affine, G2Affine};
 
+    use crate::filler::precompile::write_slice;
     pub use revm_precompile::bn128::{
         ADD_INPUT_LEN, MUL_INPUT_LEN, PAIR_ELEMENT_LEN,
         add::ISTANBUL_ADD_GAS_COST as ADD_GAS_COST,
@@ -315,34 +360,30 @@ mod bn128 {
     /// Note: A G2 element contains 2 Fq^2 elements.
     pub const G2_LEN: usize = 2 * FQ2_LEN;
 
-    pub fn write_g1<'a>(buffer: &'a mut [u8], point: &G1Affine) -> &'a mut [u8] {
+    pub fn write_g1<'a>(mut buffer: &'a mut [u8], point: &G1Affine) -> &'a mut [u8] {
         let mut serialize_le = [0u8; FQ_LEN];
         let (x, y) = point.xy().unwrap();
 
         x.serialize_uncompressed(&mut serialize_le[..]).unwrap();
         serialize_le.reverse();
-        buffer[..FQ_LEN].copy_from_slice(&serialize_le);
+        buffer = write_slice(buffer, &serialize_le);
 
         y.serialize_uncompressed(&mut serialize_le[..]).unwrap();
         serialize_le.reverse();
-        buffer[FQ_LEN..2 * FQ_LEN].copy_from_slice(&serialize_le);
-
-        &mut buffer[2 * FQ_LEN..]
+        write_slice(buffer, &serialize_le)
     }
 
-    pub fn write_g2<'a>(buffer: &'a mut [u8], point: &G2Affine) -> &'a mut [u8] {
+    pub fn write_g2<'a>(mut buffer: &'a mut [u8], point: &G2Affine) -> &'a mut [u8] {
         let mut serialize_le = [0u8; FQ2_LEN];
         let (x, y) = point.xy().unwrap();
 
         x.serialize_uncompressed(&mut serialize_le[..]).unwrap();
         serialize_le.reverse();
-        buffer[..FQ2_LEN].copy_from_slice(&serialize_le);
+        buffer = write_slice(buffer, &serialize_le);
 
         y.serialize_uncompressed(&mut serialize_le[..]).unwrap();
         serialize_le.reverse();
-        buffer[FQ2_LEN..2 * FQ2_LEN].copy_from_slice(&serialize_le);
-
-        &mut buffer[2 * FQ2_LEN..]
+        write_slice(buffer, &serialize_le)
     }
 
     #[inline(always)]
@@ -364,6 +405,35 @@ mod bn128 {
     pub fn rand_scalar<R: RngCore>(mut rng: R) -> Fr {
         Fr::from(rng.random::<u128>())
     }
+}
+
+fn call_stack_builder<F>(addr: Address, arg_length_fn: F, gas: u64) -> StackBuilder
+where
+    F: Fn(usize) -> usize + Send + Sync + 'static,
+{
+    Box::new(move |stack, params| {
+        let arg_size = arg_length_fn(params.input_size);
+        for i in 0..params.repetition {
+            assert!(stack.push(U256::ZERO)); // retSize
+            assert!(stack.push(U256::ZERO)); // retOffset
+            assert!(stack.push(U256::from(arg_size))); // argsSize
+            assert!(stack.push(U256::from(i * arg_size))); // argsOffset
+            assert!(stack.push(U256::from_be_slice(addr.as_slice()))); // address
+            assert!(stack.push(U256::from(gas))); // gas
+        }
+    })
+}
+
+fn write_u256(buffer: &mut [u8], value: U256) -> &mut [u8] {
+    assert!(buffer.len() >= 32);
+    buffer[..32].copy_from_slice(&value.to_be_bytes::<32>());
+    &mut buffer[32..]
+}
+
+fn write_slice<'a>(buffer: &'a mut [u8], slice: &[u8]) -> &'a mut [u8] {
+    assert!(buffer.len() >= slice.len());
+    buffer[..slice.len()].copy_from_slice(slice);
+    &mut buffer[slice.len()..]
 }
 
 #[cfg(test)]
