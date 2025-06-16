@@ -7,7 +7,6 @@ use rayon::prelude::*;
 use revm_bytecode::OpCode;
 use std::{
     collections::BTreeSet,
-    ops::Deref,
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
     time::Duration,
@@ -148,9 +147,9 @@ where
     tasks_pb.enable_steady_tick(Duration::from_millis(200));
 
     seeds
-        .into_iter()
+        .into_par_iter()
         .enumerate()
-        // .panic_fuse()
+        .panic_fuse()
         .for_each(move |(idx, seed)| {
             let pb = m.add(
                 ProgressBar::new(cases_length as u64)
