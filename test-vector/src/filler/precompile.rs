@@ -16,10 +16,45 @@ use std::{
 const PRECOMPILE_CALL_MAX_GAS: u64 = u32::MAX as u64;
 
 pub(crate) fn fill(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+    // fill_modexp_dynamic_e(map);
     fill_ec_add(map);
     fill_ec_mul(map);
     fill_ec_pair(map);
 }
+
+// fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+//     use modexp::*;
+//
+//     let name: Arc<str> = Arc::from("modexp-dynamic-e");
+//
+//     map.insert(
+//         name.clone(),
+//         Arc::new(TestCaseBuilder {
+//             description: name,
+//             kind: TestCaseKind::DynamicMixed,
+//             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
+//             support_input_size: (0..=1024).collect(), // byte length of E
+//             memory_builder: Box::new(|memory, params| {
+//                 let mut rng = params.rng();
+//
+//                 run_modexp()
+//             }),
+//             stack_builder: Box::new(move |stack, params| {
+//                 let arg_size = params.input_size * PAIR_ELEMENT_LEN;
+//                 for i in 0..params.repetition {
+//                     assert!(stack.push(U256::ZERO)); // retSize
+//                     assert!(stack.push(U256::ZERO)); // retOffset
+//                     assert!(stack.push(U256::from(arg_size))); // argsSize
+//                     assert!(stack.push(U256::from(i * arg_size))); // argsOffset
+//                     assert!(stack.push(U256::from_be_slice(ADDR.as_slice()))); // address
+//                     assert!(stack.push(U256::from(PRECOMPILE_CALL_MAX_GAS))); // gas
+//                 }
+//             }),
+//             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
+//             ..Default::default()
+//         }),
+//     );
+// }
 
 fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
@@ -71,8 +106,9 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
         Arc::new(TestCaseBuilder {
             description: name,
             // analysis found that cycles are almost irrelevant to bits
-            kind: TestCaseKind::ConstantMixed,
+            kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
+            support_input_size: (0..254).collect(),
             memory_builder: Box::new(|memory, params| {
                 let mut rng = params.rng();
 
@@ -83,7 +119,7 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
 
                 // scalar = 2^input_size - 1
                 // we won't exceed the 254 bits of Fr
-                let bits: u32 = rng.random_range(0..254);
+                let bits: u32 = params.input_size as u32;
                 let scalar = U256::from(2u8)
                     .pow(U256::from(bits))
                     .sub(U256::ONE)
@@ -203,6 +239,36 @@ fn call_stack_builder(addr: Address, arg_size: usize, gas: u64) -> StackBuilder 
             assert!(stack.push(U256::from(gas))); // gas
         }
     })
+}
+
+mod modexp {
+    use evm_guest::*;
+    use revm_precompile::u64_to_address;
+
+    pub use revm_precompile::modexp::run_inner as run_modexp;
+
+    pub const ADDR: Address = u64_to_address(0x04);
+    // The format of input is:
+    // <length_of_BASE> <length_of_EXPONENT> <length_of_MODULUS> <BASE> <EXPONENT> <MODULUS>
+    // Where every length is a 32-byte left-padded integer representing the number of bytes
+    // to be taken up by the next value.
+    pub const HEADER_LEN: usize = 3 * 32; // 3 lengths of 32 bytes each
+
+    // gas model
+    //
+    // B ** E % M
+    //
+    // max_length = max(Bsize, Msize)
+    // words = (max_length + 7) / 8
+    // multiplication_complexity = words**2
+    //
+    // iteration_count = 0
+    // if Esize <= 32 and exponent == 0: iteration_count = 0
+    // elif Esize <= 32: iteration_count = exponent.bit_length() - 1
+    // elif Esize > 32: iteration_count = (8 * (Esize - 32)) + ((exponent & (2**256 - 1)).bit_length() - 1)
+    // calculate_iteration_count = max(iteration_count, 1)
+    //
+    // gas = max(200, multiplication_complexity * calculate_iteration_count / 3)
 }
 
 mod bn128 {

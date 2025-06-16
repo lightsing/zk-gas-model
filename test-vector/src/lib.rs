@@ -73,6 +73,11 @@ pub static OPCODE_CYCLE_LUT: LazyLock<BTreeMap<OpCode, CycleModel>> = LazyLock::
         .collect()
 });
 
+pub static PRECOMPILE_CYCLE_LUT: LazyLock<BTreeMap<String, CycleModel>> = LazyLock::new(|| {
+    serde_json::from_str::<BTreeMap<String, CycleModel>>(include_str!("precompile-lut.json"))
+        .expect("Failed to parse opcode cycle LUT")
+});
+
 pub static OPCODE_TEST_VECTORS: LazyLock<BTreeMap<OpCode, Arc<TestCaseBuilder>>> =
     LazyLock::new(|| {
         let mut map = BTreeMap::new();

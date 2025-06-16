@@ -7,13 +7,14 @@ use rayon::prelude::*;
 use revm_bytecode::OpCode;
 use std::{
     collections::BTreeSet,
+    ops::Deref,
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
     time::Duration,
 };
 use test_vector::{
-    OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, OpCodeOrPrecompile, PRECOMPILE_TEST_VECTORS,
-    TestCaseBuilder, TestCaseKind,
+    OPCODE_CYCLE_LUT, OPCODE_TEST_VECTORS, OpCodeOrPrecompile, PRECOMPILE_CYCLE_LUT,
+    PRECOMPILE_TEST_VECTORS, TestCaseBuilder, TestCaseKind,
 };
 
 const GUEST_ELF: &[u8] = include_bytes!("../elf/evm-guest");
@@ -24,7 +25,7 @@ mod runner;
 struct Args {
     kind: Option<TestCaseKind>,
     #[clap(long, value_delimiter = ',')]
-    opcodes: Vec<String>,
+    names: Vec<String>,
     #[clap(long)]
     precompile: bool,
     #[clap(long, default_value = "results.csv")]
@@ -49,7 +50,7 @@ fn main() {
 
     let Args {
         kind,
-        opcodes,
+        names,
         precompile,
         out,
         seed,
@@ -57,29 +58,42 @@ fn main() {
         no_cache,
     } = Args::parse();
 
-    let opcodes = opcodes
-        .into_iter()
-        .map(|s| OpCode::parse(s.as_str()).unwrap())
-        .collect::<BTreeSet<_>>();
-
-    if !opcodes.is_empty() {
+    if !names.is_empty() {
         eprintln!(
-            "Opcodes set, kind is ignored, running tests for: {}",
-            opcodes.iter().map(|op| op.as_str()).join(", ")
+            "Names set, kind is ignored, running tests for: {}",
+            names.iter().map(|op| op.as_str()).join(", ")
         );
     }
 
     if precompile {
+        let names = names.into_iter().collect::<BTreeSet<_>>();
+
         run_inner(
             out,
             seed,
             repeat,
             PRECOMPILE_TEST_VECTORS
                 .iter()
-                .filter(|(_, tc)| tc.kind() == kind.unwrap())
+                .filter(|(name, tc)| {
+                    if names.is_empty() {
+                        let kind = kind.unwrap();
+                        if no_cache {
+                            tc.kind() == kind
+                        } else {
+                            tc.kind() == kind && !PRECOMPILE_CYCLE_LUT.contains_key(name.as_ref())
+                        }
+                    } else {
+                        names.contains(name.as_ref())
+                    }
+                })
                 .map(|(name, tc)| (OpCodeOrPrecompile::Precompile(name.clone()), tc.clone())),
         );
     } else {
+        let opcodes = names
+            .into_iter()
+            .map(|s| OpCode::parse(s.as_str()).unwrap())
+            .collect::<BTreeSet<_>>();
+
         run_inner(
             out,
             seed,
@@ -134,9 +148,9 @@ where
     tasks_pb.enable_steady_tick(Duration::from_millis(200));
 
     seeds
-        .into_par_iter()
+        .into_iter()
         .enumerate()
-        .panic_fuse()
+        // .panic_fuse()
         .for_each(move |(idx, seed)| {
             let pb = m.add(
                 ProgressBar::new(cases_length as u64)
