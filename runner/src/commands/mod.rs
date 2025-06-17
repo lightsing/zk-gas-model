@@ -13,7 +13,7 @@ use test_vector::{OpCodeOrPrecompile, TestCaseBuilder, TestCaseKind};
 
 static PROGRESS_STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
     ProgressStyle::with_template(
-        "{prefix} {msg:<14} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {wide_bar} {pos:>6}/{len:6}",
+        "{prefix} {msg:<20} [elapsed {elapsed_precise}, eta {eta_precise}, {percent_precise:>7}%] {wide_bar} {pos:>6}/{len:6}",
     )
         .unwrap()
 });
