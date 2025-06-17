@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "select * from bytecode",
+  "describe": {
+    "columns": [
+      {
+        "name": "hash",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "bytecode",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "call_counter",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "58214bd5b2ff3246f7bb466a5697487f8b4e33cf313a9aa698c9b8b19da0556b"
+}
