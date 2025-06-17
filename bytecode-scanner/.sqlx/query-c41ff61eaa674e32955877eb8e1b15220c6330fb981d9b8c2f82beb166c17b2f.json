@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO bytecode (hash, bytecode) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c41ff61eaa674e32955877eb8e1b15220c6330fb981d9b8c2f82beb166c17b2f"
+}

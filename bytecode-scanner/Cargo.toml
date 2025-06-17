@@ -1,0 +1,17 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "bytecode-scanner"
+version.workspace = true
+
+[dependencies]
+alloy = { workspace = true, features = ["full", "json-rpc"] }
+alloy-transport = { workspace = true, features = ["throttle"] }
+clap = { workspace = true, features = ["env"] }
+dotenvy.workspace = true
+eyre.workspace = true
+revm-bytecode.workspace = true
+sled.workspace = true
+sqlx.workspace = true
+tokio = { workspace = true, features = ["full"] }
+url.workspace = true
