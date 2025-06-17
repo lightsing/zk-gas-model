@@ -8,4 +8,11 @@ fn main() {
             ..Default::default()
         },
     );
+    build_program_with_args(
+        "../jumpdest-analyze-guest",
+        BuildArgs {
+            output_directory: Some("elf".to_string()),
+            ..Default::default()
+        },
+    );
 }

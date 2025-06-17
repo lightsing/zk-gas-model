@@ -1,4 +1,4 @@
-use crate::GUEST_ELF;
+use crate::{GUEST_ELF, JUMPDEST_GUEST_ELF};
 use itertools::Itertools;
 use revm_bytecode::{Bytecode, OpCode};
 use revm_interpreter::interpreter::ExtBytecode;
@@ -7,7 +7,7 @@ use sp1_sdk::{CpuProver, ExecutionReport, SP1Stdin};
 use std::{mem, sync::LazyLock};
 use test_vector::{OPCODE_CYCLE_LUT, OpCodeOrPrecompile, OpcodeUsage, TestCase, TestCaseKind};
 
-static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
+pub(crate) static CLIENT: LazyLock<CpuProver> = LazyLock::new(CpuProver::new);
 
 pub struct TestRunResult {
     name: OpCodeOrPrecompile,
@@ -20,6 +20,13 @@ pub struct TestRunResult {
     exec_report: ExecutionReport,
     // interpreter_result: InterpreterResult,
     opcodes_usage: OpcodeUsage,
+}
+
+#[derive(Debug, Copy, Clone, Serialize)]
+pub struct JumpdestResult {
+    input_size: usize,
+    baseline_instruction_count: u64,
+    exec_instruction_count: u64,
 }
 
 #[derive(Serialize)]
@@ -39,7 +46,7 @@ pub struct ConstantMixedCaseResult<'a> {
     instruction_count_consumes_by_other_estimated: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct DynamicSimpleCaseResult<'a> {
     name: &'a str,
     repetition: usize,
@@ -100,6 +107,30 @@ pub fn run_test(name: OpCodeOrPrecompile, mut tc: TestCase) -> TestRunResult {
         exec_report,
         // interpreter_result,
         opcodes_usage,
+    }
+}
+
+pub fn measure_jumpdest_cost(bytecode: &[u8]) -> DynamicSimpleCaseResult<'static> {
+    let (_, baseline_report) = {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&true);
+        stdin.write(&bytecode);
+        CLIENT.execute(JUMPDEST_GUEST_ELF, &stdin).run().unwrap()
+    };
+
+    let (_, exec_report) = {
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&false);
+        stdin.write(&bytecode);
+        CLIENT.execute(JUMPDEST_GUEST_ELF, &stdin).run().unwrap()
+    };
+
+    DynamicSimpleCaseResult {
+        name: "jumpdest",
+        repetition: 1,
+        input_size: bytecode.len(),
+        baseline_instruction_count: baseline_report.total_instruction_count(),
+        exec_instruction_count: exec_report.total_instruction_count(),
     }
 }
 
