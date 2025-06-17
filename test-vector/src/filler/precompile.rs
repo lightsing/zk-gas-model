@@ -299,7 +299,7 @@ mod modexp {
     use crate::filler::precompile::{write_slice, write_u256};
     pub use revm_precompile::modexp::berlin_run as run_modexp;
 
-    pub const ADDR: Address = u64_to_address(0x04);
+    pub const ADDR: Address = u64_to_address(0x05);
     // The format of input is:
     // <length_of_BASE> <length_of_EXPONENT> <length_of_MODULUS> <BASE> <EXPONENT> <MODULUS>
     // Where every length is a 32-byte left-padded integer representing the number of bytes
