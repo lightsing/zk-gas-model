@@ -6,7 +6,7 @@ use ark_ff::Field;
 use evm_guest::*;
 use itertools::Itertools;
 use rand::Rng;
-use revm_precompile::u64_to_address;
+use rand_xoshiro::Xoshiro256Plus;
 use std::{
     collections::BTreeMap,
     ops::{Neg, Sub},
@@ -16,19 +16,33 @@ use std::{
 const PRECOMPILE_CALL_MAX_GAS: u64 = u32::MAX as u64;
 
 pub(crate) fn fill(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
-    fill_modexp_dynamic_bm(map);
-    fill_modexp_dynamic_e(map);
+    fill_modexp_bm(
+        map,
+        "modexp-crt-bm",
+        modexp::rand_non_power_of_two_even_modulus,
+    );
+    fill_modexp_bm(map, "modexp-montgomery-bm", modexp::rand_ood_modulus);
+    fill_modexp_e(
+        map,
+        "modexp-crt-e",
+        modexp::rand_non_power_of_two_even_modulus,
+    );
+    fill_modexp_e(map, "modexp-montgomery-e", modexp::rand_ood_modulus);
     fill_ec_add(map);
     fill_ec_mul(map);
     fill_ec_pair(map);
 }
 
-fn fill_modexp_dynamic_bm(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+fn fill_modexp_bm<F>(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>, name: &str, modulus_fn: F)
+where
+    F: Fn(&mut Xoshiro256Plus, usize) -> Vec<u8> + Send + Sync + 'static,
+{
     use modexp::*;
 
-    let name: Arc<str> = Arc::from("modexp-dynamic-bm");
+    let name: Arc<str> = Arc::from(name);
 
     const E_SIZE: usize = 32; // length of B, M
+    const E: [u8; E_SIZE] = [0xff; E_SIZE];
 
     let arg_size_fn = |bm_size| HEADER_LEN + bm_size * 2 + E_SIZE;
 
@@ -49,16 +63,9 @@ fn fill_modexp_dynamic_bm(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                 let mut buffer = context_memory_mut.as_mut();
 
                 for _ in 0..params.repetition {
-                    let b = (&mut rng)
-                        .random_iter::<u8>()
-                        .take(params.input_size)
-                        .collect_vec();
-                    let m = (&mut rng)
-                        .random_iter::<u8>()
-                        .take(params.input_size)
-                        .collect_vec();
-                    let e = rng.random::<[u8; E_SIZE]>();
-                    write_input(buffer, &b, &e, &m);
+                    let m = modulus_fn(&mut rng, params.input_size);
+                    let b = derive_base_from_modulus(&m);
+                    write_input(buffer, &b, &E, &m);
                     run_modexp(&buffer[..arg_size], PRECOMPILE_CALL_MAX_GAS).unwrap();
                     buffer = &mut buffer[arg_size..];
                 }
@@ -70,10 +77,13 @@ fn fill_modexp_dynamic_bm(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     );
 }
 
-fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
+fn fill_modexp_e<F>(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>, name: &str, modulus_fn: F)
+where
+    F: Fn(&mut Xoshiro256Plus, usize) -> Vec<u8> + Send + Sync + 'static,
+{
     use modexp::*;
 
-    let name: Arc<str> = Arc::from("modexp-dynamic-e");
+    let name: Arc<str> = Arc::from(name);
 
     const B_M_LENGTH: usize = 32; // length of B, M
 
@@ -85,7 +95,7 @@ fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
             description: name,
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
-            support_input_size: (0..=1024).collect(), // byte length of E
+            support_input_size: (9..=1024).collect(), // byte length of E
             memory_builder: Box::new(move |memory, params| {
                 let mut rng = params.rng();
 
@@ -96,12 +106,9 @@ fn fill_modexp_dynamic_e(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                 let mut buffer = context_memory_mut.as_mut();
 
                 for _ in 0..params.repetition {
-                    let b = rng.random::<[u8; B_M_LENGTH]>();
-                    let m = rng.random::<[u8; B_M_LENGTH]>();
-                    let e = (&mut rng)
-                        .random_iter::<u8>()
-                        .take(params.input_size)
-                        .collect_vec();
+                    let m = modulus_fn(&mut rng, B_M_LENGTH);
+                    let b = derive_base_from_modulus(&m);
+                    let e = [0xff].repeat(params.input_size);
                     write_input(buffer, &b, &e, &m);
                     run_modexp(&buffer[..arg_size], PRECOMPILE_CALL_MAX_GAS).unwrap();
                     buffer = &mut buffer[arg_size..];
@@ -118,7 +125,6 @@ fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
     let name: Arc<str> = Arc::from("ecAdd");
-    let addr = u64_to_address(0x06);
 
     map.insert(
         name.clone(),
@@ -146,7 +152,11 @@ fn fill_ec_add(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     buffer = &mut buffer[ADD_INPUT_LEN..];
                 }
             }),
-            stack_builder: call_stack_builder(addr, |_| ADD_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
+            stack_builder: call_stack_builder(
+                EC_ADD_ADDR,
+                |_| ADD_INPUT_LEN,
+                PRECOMPILE_CALL_MAX_GAS,
+            ),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
@@ -157,7 +167,6 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
     let name: Arc<str> = Arc::from("ecMul");
-    let addr = u64_to_address(0x07);
 
     map.insert(
         name.clone(),
@@ -195,7 +204,11 @@ fn fill_ec_mul(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     buffer = &mut buffer[MUL_INPUT_LEN..];
                 }
             }),
-            stack_builder: call_stack_builder(addr, |_| MUL_INPUT_LEN, PRECOMPILE_CALL_MAX_GAS),
+            stack_builder: call_stack_builder(
+                EC_MUL_ADDR,
+                |_| MUL_INPUT_LEN,
+                PRECOMPILE_CALL_MAX_GAS,
+            ),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
@@ -206,7 +219,6 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
     use bn128::*;
 
     let name: Arc<str> = Arc::from("ecPairing");
-    let addr = u64_to_address(0x08);
 
     // const BLOCK_GAS_TARGET: u64 = 20_000_000;
     const MAX_PAIR_LEN: u64 = 10;
@@ -269,7 +281,11 @@ fn fill_ec_pair(map: &mut BTreeMap<Arc<str>, Arc<TestCaseBuilder>>) {
                     buffer = &mut buffer[arg_size..];
                 }
             }),
-            stack_builder: call_stack_builder(addr, arg_size_fn, PRECOMPILE_CALL_MAX_GAS),
+            stack_builder: call_stack_builder(
+                EC_PAIRING_ADDR,
+                arg_size_fn,
+                PRECOMPILE_CALL_MAX_GAS,
+            ),
             bytecode_builder: default_bytecode_with_pop_builder(OpCode::DELEGATECALL),
             ..Default::default()
         }),
@@ -289,6 +305,43 @@ mod modexp {
     // Where every length is a 32-byte left-padded integer representing the number of bytes
     // to be taken up by the next value.
     pub const HEADER_LEN: usize = 3 * 32; // 3 lengths of 32 bytes each
+
+    pub fn rand_non_power_of_two_even_modulus<R: rand::RngCore>(
+        rng: &mut R,
+        size: usize,
+    ) -> Vec<u8> {
+        let mut modulus = vec![0u8; size];
+        loop {
+            rng.fill_bytes(&mut modulus);
+            modulus[0] |= 1 << 7; // Ensure the first byte is not zero
+            modulus[size - 1] &= !1; // Ensure the last byte is not zero
+            let bit_count = modulus.iter().map(|b| b.count_ones()).sum::<u32>();
+            if bit_count == 1 {
+                continue;
+            }
+            break;
+        }
+        modulus
+    }
+
+    pub fn rand_ood_modulus<R: rand::RngCore>(rng: &mut R, size: usize) -> Vec<u8> {
+        let mut modulus = vec![0u8; size];
+        rng.fill_bytes(&mut modulus);
+        modulus[0] |= 1 << 7;
+        modulus[size - 1] |= 1;
+        modulus
+    }
+
+    pub fn derive_base_from_modulus(modulus: &[u8]) -> Vec<u8> {
+        assert!(!modulus.is_empty(), "modulus must be non-empty");
+        assert_ne!(modulus[0], 0, "modulus must not start with zero");
+        let mut base = modulus.to_vec();
+        base[0] -= 1; // ensure base is less than modulus
+        for b in &mut base {
+            *b ^= 0xA5;
+        }
+        base
+    }
 
     pub fn write_input<'a>(
         mut buffer: &'a mut [u8],
@@ -316,14 +369,16 @@ mod modexp {
 }
 
 mod bn128 {
+    use crate::filler::precompile::write_slice;
     use ark_ec::AffineRepr;
     use ark_serialize::CanonicalSerialize;
     use rand::{Rng, RngCore};
+    use revm_precompile::u64_to_address;
     use std::ops::Mul;
 
     pub use ark_bn254::{Fr, G1Affine, G2Affine};
 
-    use crate::filler::precompile::write_slice;
+    use evm_guest::Address;
     pub use revm_precompile::bn128::{
         ADD_INPUT_LEN, MUL_INPUT_LEN, PAIR_ELEMENT_LEN,
         add::ISTANBUL_ADD_GAS_COST as ADD_GAS_COST,
@@ -333,6 +388,10 @@ mod bn128 {
         },
         run_add, run_mul, run_pair,
     };
+
+    pub const EC_ADD_ADDR: Address = u64_to_address(0x06);
+    pub const EC_MUL_ADDR: Address = u64_to_address(0x07);
+    pub const EC_PAIRING_ADDR: Address = u64_to_address(0x08);
 
     /// FQ_LEN specifies the number of bytes needed to represent an
     /// Fq element. This is an element in the base field of BN254.
