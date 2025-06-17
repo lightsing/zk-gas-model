@@ -5,19 +5,18 @@ name = "test-vector"
 version.workspace = true
 
 [dependencies]
+ark-bn254.workspace = true
+ark-ec.workspace = true
+ark-ff.workspace = true
+ark-serialize.workspace = true
 clap.workspace = true
 evm-guest = { path = "../guest", default-features = false, features = ["parse", "rand"] }
 itertools.workspace = true
 rand.workspace = true
 rand_xoshiro.workspace = true
-serde_json.workspace = true
-serde.workspace = true
 revm-precompile.workspace = true
-ark-bn254.workspace = true
-ark-ec.workspace = true
-ark-ff.workspace = true
-ark-std.workspace = true
-ark-serialize.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 rayon.workspace = true
