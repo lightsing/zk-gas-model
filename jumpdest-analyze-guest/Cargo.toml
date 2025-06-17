@@ -1,0 +1,10 @@
+[package]
+name = "jumpdest-analyze-guest"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+revm-bytecode.workspace = true
+sp1-zkvm.workspace = true
+revm-primitives.workspace = true
