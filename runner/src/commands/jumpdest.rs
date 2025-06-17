@@ -1,8 +1,6 @@
 use crate::commands::{CommonArgs, runner::measure_jumpdest_cost};
 use clap::{Args, Subcommand};
-use rand::{Rng, SeedableRng};
-use rand_xoshiro::Xoshiro256Plus;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use revm_bytecode::OpCode;
 use std::{fs::read, path::PathBuf, sync::Mutex};
 
@@ -41,15 +39,12 @@ impl JumpDestCommand {
 }
 
 fn run_worst_case(out: CommonArgs) {
-    let mut rng = Xoshiro256Plus::seed_from_u64(out.seed);
+    const MAX_BYTECODE_LENGTH: usize = 24_576;
     let bytecode = [OpCode::JUMPDEST.get()].repeat(24_576);
     let writer = Mutex::new(csv::Writer::from_path(out.out).unwrap());
 
-    (1..=out.repeat)
-        .map(|_| rng.random_range(1..24_576))
-        .par_bridge()
-        .for_each(move |length| {
-            let result = measure_jumpdest_cost(&bytecode[1..length]);
-            writer.lock().unwrap().serialize(result).unwrap();
-        });
+    (0..MAX_BYTECODE_LENGTH).into_par_iter().for_each(move |i| {
+        let result = measure_jumpdest_cost(&bytecode[..i]);
+        writer.lock().unwrap().serialize(result).unwrap();
+    });
 }
