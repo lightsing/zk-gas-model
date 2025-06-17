@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "bytecode-scanner",
   "guest",
   "jumpdest-analyze-guest",
   "runner",
@@ -18,28 +19,35 @@ sp1-build = "4.2"
 sp1-sdk = "4.2"
 sp1-zkvm = "4.2"
 
+alloy = "1"
+alloy-transport = "1"
+ark-bn254 = "0.5"
+ark-ec = "0.5"
+ark-ff = "0.5"
+ark-serialize = "0.5"
 clap = { version = "4.5", features = ["derive"] }
 csv = "1.3"
+dotenvy = "0.15"
+eyre = "0.6"
 indicatif = "0.17"
 itertools = "0.14"
 rand = "0.9"
 rand_xoshiro = "0.7"
 rayon = "1.10"
-revm-precompile = { version = "22.0.0", default-features = false }
-revm-handler = { version = "5.0", default-features = false }
 revm-bytecode = { version = "4.0", default-features = false, features = ["serde"] }
 revm-context = { version = "5.0", default-features = false, features = ["serde"] }
 revm-database = { version = "4.0", default-features = false, features = ["serde"] }
+revm-handler = { version = "5.0", default-features = false }
 revm-interpreter = { version = "20.0", default-features = false, features = ["serde"] }
+revm-precompile = { version = "21.0.0", default-features = false }
 revm-primitives = { version = "19.1", default-features = false, features = ["serde"] }
 revm-state = { version = "4.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-ark-bn254 = "0.5"
-ark-ec = "0.5"
-ark-ff = "0.5"
-ark-serialize = "0.5"
-ark-std = "0.5"
+sled = "0.34"
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+tokio = "1"
+url = "2.5"
 
 [profile.test]
 lto = true
