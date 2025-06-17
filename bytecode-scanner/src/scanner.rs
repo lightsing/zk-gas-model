@@ -89,6 +89,7 @@ pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()
         }
     }
 
+    drop(tx);
     saver_worker.await.wrap_err("failed to await saver")??;
     Ok(())
 }
