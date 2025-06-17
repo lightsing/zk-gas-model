@@ -2,7 +2,7 @@ use clap::{Args, Subcommand};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use std::{
     path::PathBuf,
     sync::{Arc, LazyLock, Mutex},
@@ -53,7 +53,7 @@ impl Commands {
 
 fn opcodes_precompile_run_inner<C>(out: PathBuf, seed: u64, repeat: usize, cases: C)
 where
-    C: IntoIterator<Item = (OpCodeOrPrecompile, Arc<TestCaseBuilder>)> + Send + Sync + Clone,
+    C: Iterator<Item = (OpCodeOrPrecompile, Arc<TestCaseBuilder>)> + Send + Sync + Clone,
 {
     let writer = Mutex::new(csv::Writer::from_path(out).unwrap());
     let seeds = Xoshiro256Plus::seed_from_u64(seed)
@@ -63,7 +63,6 @@ where
 
     let cases_length = cases
         .clone()
-        .into_iter()
         .map(|(_, builder)| builder.testcases_len())
         .sum::<usize>();
 
@@ -81,19 +80,19 @@ where
     );
     tasks_pb.enable_steady_tick(Duration::from_millis(200));
 
-    seeds
-        .into_par_iter()
+    cases
         .enumerate()
+        .par_bridge()
         .panic_fuse()
-        .for_each(move |(idx, seed)| {
+        .for_each(move |(idx, (name, builder))| {
             let pb = m.add(
                 ProgressBar::new(cases_length as u64)
                     .with_prefix(format!("#{idx:<03}"))
                     .with_style(PROGRESS_STYLE.clone()),
             );
 
-            for (name, builder) in cases.clone() {
-                let tcs = builder.build_all(Some(seed));
+            for seed in seeds.iter() {
+                let tcs = builder.build_all(Some(*seed));
                 pb.set_message(builder.description().to_string());
 
                 for tc in tcs.into_iter() {
