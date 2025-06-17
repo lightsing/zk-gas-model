@@ -1,5 +1,6 @@
 use clap::{Args, Subcommand};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use itertools::Itertools;
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256Plus;
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -81,41 +82,40 @@ where
     tasks_pb.enable_steady_tick(Duration::from_millis(200));
 
     cases
+        .cartesian_product(seeds)
         .enumerate()
         .par_bridge()
         .panic_fuse()
-        .for_each(move |(idx, (name, builder))| {
+        .for_each(move |(idx, ((name, builder), seed))| {
             let pb = m.add(
                 ProgressBar::new(cases_length as u64)
                     .with_prefix(format!("#{idx:<03}"))
                     .with_style(PROGRESS_STYLE.clone()),
             );
 
-            for seed in seeds.iter() {
-                let tcs = builder.build_all(Some(*seed));
-                pb.set_message(builder.description().to_string());
+            let tcs = builder.build_all(Some(seed));
+            pb.set_message(builder.description().to_string());
 
-                for tc in tcs.into_iter() {
-                    let result = runner::run_test(name.clone(), tc);
-                    let mut writer = writer.lock().unwrap();
-                    match builder.kind() {
-                        TestCaseKind::ConstantSimple => {
-                            writer.serialize(result.to_constant_simple_case_result())
-                        }
-                        TestCaseKind::ConstantMixed => {
-                            writer.serialize(result.to_constant_mixed_case_result())
-                        }
-                        TestCaseKind::DynamicSimple => {
-                            writer.serialize(result.to_dynamic_simple_case_result())
-                        }
-                        TestCaseKind::DynamicMixed => {
-                            writer.serialize(result.to_dynamic_mixed_case_result())
-                        }
+            for tc in tcs.into_iter() {
+                let result = runner::run_test(name.clone(), tc);
+                let mut writer = writer.lock().unwrap();
+                match builder.kind() {
+                    TestCaseKind::ConstantSimple => {
+                        writer.serialize(result.to_constant_simple_case_result())
                     }
-                    .unwrap();
-                    pb.inc(1);
-                    tasks_pb.inc(1);
+                    TestCaseKind::ConstantMixed => {
+                        writer.serialize(result.to_constant_mixed_case_result())
+                    }
+                    TestCaseKind::DynamicSimple => {
+                        writer.serialize(result.to_dynamic_simple_case_result())
+                    }
+                    TestCaseKind::DynamicMixed => {
+                        writer.serialize(result.to_dynamic_mixed_case_result())
+                    }
                 }
+                .unwrap();
+                pb.inc(1);
+                tasks_pb.inc(1);
             }
             pb.finish_and_clear();
         });
