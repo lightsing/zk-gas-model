@@ -2,7 +2,7 @@ use crate::AppData;
 use alloy::{
     consensus::Transaction,
     eips::BlockNumberOrTag,
-    primitives::{Address, B256},
+    primitives::{Address, B256, Bytes},
     providers::Provider,
 };
 use eyre::{ContextCompat, Result, WrapErr};
@@ -71,11 +71,8 @@ pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()
                     .number(block_number)
                     .await
                     .wrap_err("failed to get code")?;
-                let bytecode = Bytecode::new_raw(code);
-                let hash = bytecode.hash_slow();
                 mark_address_fetched(&app_data, address)?;
-                tx.send((hash, bytecode))
-                    .wrap_err("failed to send to saver")?;
+                tx.send(code).wrap_err("failed to send to saver")?;
             }
             mark_block_fetched(&app_data, block_number)?;
 
@@ -96,11 +93,13 @@ pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()
 
 async fn saver(
     app_data: Arc<AppData<impl Provider>>,
-    mut rx: tokio::sync::mpsc::UnboundedReceiver<(B256, Bytecode)>,
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<Bytes>,
 ) -> Result<()> {
     let mut counter = 0usize;
     let mut last_reported = Instant::now();
-    while let Some((hash, bytecode)) = rx.recv().await {
+    while let Some(code) = rx.recv().await {
+        let bytecode = Bytecode::new_raw(code);
+        let hash = bytecode.hash_slow();
         if update_count_if_bytecode_exist(&app_data, hash).await? {
             continue;
         }
