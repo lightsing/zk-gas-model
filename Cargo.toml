@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "guest",
+  "jumpdest-analyze-guest",
   "runner",
   "test-vector",
 ]
