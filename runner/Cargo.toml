@@ -7,6 +7,7 @@ version.workspace = true
 [dependencies]
 clap.workspace = true
 csv.workspace = true
+futures.workspace = true
 indicatif.workspace = true
 itertools.workspace = true
 rand.workspace = true
@@ -16,7 +17,9 @@ revm-bytecode.workspace = true
 revm-interpreter.workspace = true
 serde.workspace = true
 sp1-sdk.workspace = true
+sqlx.workspace = true
 test-vector = { path = "../test-vector" }
+tokio = { workspace = true, features = ["rt"] }
 
 [build-dependencies]
 sp1-build.workspace = true
