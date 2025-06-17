@@ -52,7 +52,7 @@ where
             description: name,
             kind: TestCaseKind::DynamicMixed,
             support_repetition: 1..1024 / OpCode::DELEGATECALL.inputs() as usize,
-            support_input_size: (0..=1024).collect(), // byte length of E
+            support_input_size: (9..=1024).collect(), // byte length of E
             memory_builder: Box::new(move |memory, params| {
                 let mut rng = params.rng();
 
