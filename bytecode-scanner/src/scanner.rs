@@ -7,7 +7,10 @@ use alloy::{
 };
 use eyre::{ContextCompat, Result, WrapErr};
 use revm_bytecode::Bytecode;
-use std::sync::{Arc, atomic::AtomicBool};
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    time::Instant,
+};
 
 pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()> {
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -25,6 +28,9 @@ pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()
         let app_data = app_data.clone();
         saver(app_data, rx)
     });
+
+    let mut counter = 0usize;
+    let mut last_reported = Instant::now();
 
     'outer: loop {
         let mut block_number = app_data
@@ -72,6 +78,14 @@ pub async fn start(app_data: Arc<AppData<impl Provider + 'static>>) -> Result<()
                     .wrap_err("failed to send to saver")?;
             }
             mark_block_fetched(&app_data, block_number)?;
+
+            block_number -= 1;
+            counter += 1;
+            if last_reported.elapsed().as_secs() >= 60 {
+                println!("Processed {} blocks", counter);
+                last_reported = Instant::now();
+                counter = 0;
+            }
         }
     }
 
@@ -83,11 +97,19 @@ async fn saver(
     app_data: Arc<AppData<impl Provider>>,
     mut rx: tokio::sync::mpsc::UnboundedReceiver<(B256, Bytecode)>,
 ) -> Result<()> {
+    let mut counter = 0usize;
+    let mut last_reported = Instant::now();
     while let Some((hash, bytecode)) = rx.recv().await {
         if update_count_if_bytecode_exist(&app_data, hash).await? {
             continue;
         }
         store_bytecode(&app_data, hash, bytecode).await?;
+        counter += 1;
+        if last_reported.elapsed().as_secs() >= 60 {
+            println!("Stored {} bytecodes", counter);
+            last_reported = Instant::now();
+            counter = 0;
+        }
     }
 
     Ok(())
